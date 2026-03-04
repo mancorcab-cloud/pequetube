@@ -1,0 +1,80 @@
+{
+  "name": "pequetube",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron-main.cjs",
+  "author": "Manuel",
+  "description": "Videos seguros para niños",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:dev": "vite build && electron .",
+    "electron:build": "vite build && electron-builder --mac dmg",
+    "electron:build:win": "vite build && electron-builder --win",
+    "android:init": "npx cap init PequeTube com.pequetube.app --web-dir dist",
+    "android:sync": "vite build && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "lucide-react": "^0.576.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.27",
+    "electron": "^40.7.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.8",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.19",
+    "vite": "^7.3.1"
+  },
+  "build": {
+    "appId": "com.pequetube.app",
+    "productName": "PequeTube",
+    "directories": {
+      "output": "installers"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "public/icons/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "public/icons/icon-512.png",
+      "target": [
+        "dmg"
+      ]
+    },
+    "dmg": {
+      "title": "PequeTube",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+dist
+installers
+android/app/build
+.vercel
+*.dmg
+public/downloads/*.apk
+public/downloads/*.dmg

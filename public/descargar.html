@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PequeTube - Descargar</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #eff6ff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+    .container { max-width: 600px; width: 100%; text-align: center; }
+    h1 { font-size: 3rem; font-weight: 900; color: #1f2937; margin-bottom: 0.5rem; }
+    h1 span { color: #ef4444; }
+    .subtitle { color: #6b7280; font-size: 1.1rem; margin-bottom: 3rem; }
+    .cards { display: flex; flex-direction: column; gap: 1.5rem; }
+    .card { background: white; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: left; display: flex; align-items: center; gap: 1.5rem; text-decoration: none; color: inherit; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+    .card-icon { font-size: 3rem; flex-shrink: 0; }
+    .card-info h3 { font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 0.25rem; }
+    .card-info p { color: #6b7280; font-size: 0.9rem; }
+    .card-info .size { font-size: 0.8rem; color: #9ca3af; margin-top: 0.25rem; }
+    .badge { display: inline-block; background: #dbeafe; color: #2563eb; font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.5rem; }
+    .pwa-note { margin-top: 2rem; padding: 1.5rem; background: white; border-radius: 1rem; color: #6b7280; font-size: 0.85rem; line-height: 1.6; }
+    .pwa-note strong { color: #1f2937; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Peque<span>Tube</span></h1>
+    <p class="subtitle">Videos seguros para niños 📺</p>
+    
+    <div class="cards">
+      <a href="/downloads/PequeTube-1.0.0.apk" class="card" download>
+        <div class="card-icon">🤖</div>
+        <div class="card-info">
+          <h3>Android <span class="badge">APK</span></h3>
+          <p>Para tablets y móviles Android</p>
+          <p class="size">3.1 MB • Toca para descargar e instalar</p>
+        </div>
+      </a>
+
+      <a href="/downloads/PequeTube-Mac.dmg" class="card" download>
+        <div class="card-icon">🍎</div>
+        <div class="card-info">
+          <h3>macOS <span class="badge">DMG</span></h3>
+          <p>Para Mac (Apple Silicon)</p>
+          <p class="size">110 MB • Descarga e instala como cualquier app</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="pwa-note">
+      <strong>💡 Alternativa rápida:</strong> También puedes instalar PequeTube directamente desde el navegador. 
+      Abre <a href="/" style="color:#2563eb">pequetube.vercel.app</a> en Chrome y pulsa "Instalar" en la barra de direcciones.
+    </div>
+  </div>
+</body>
+</html>

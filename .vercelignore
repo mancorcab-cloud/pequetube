@@ -1,0 +1,6 @@
+installers
+android
+node_modules
+*.dmg
+*.blockmap
+electron-main.cjs

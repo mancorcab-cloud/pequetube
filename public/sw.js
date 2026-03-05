@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pequetube-v3';
+const CACHE_NAME = 'pequetube-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -24,16 +24,34 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // YouTube requests: network only
-  if (event.request.url.includes('youtube.com') || event.request.url.includes('ytimg.com') || event.request.url.includes('googlevideo.com')) {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') return;
+
+  // YouTube & Supabase requests: network only
+  if (event.request.url.includes('youtube.com') || event.request.url.includes('ytimg.com') ||
+      event.request.url.includes('googlevideo.com') || event.request.url.includes('supabase.co')) {
     return;
   }
 
+  // JS and CSS assets: network-first (always get latest)
+  if (event.request.url.match(/\.(js|css)$/)) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Other assets: cache-first with network fallback
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache successful GET requests for app assets
-        if (event.request.method === 'GET' && response.status === 200) {
+        if (response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }

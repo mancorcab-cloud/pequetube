@@ -6,3 +6,5 @@ android/app/build
 *.dmg
 public/downloads/*.apk
 public/downloads/*.dmg
+.env
+.env.local

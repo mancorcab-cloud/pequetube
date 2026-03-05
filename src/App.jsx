@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Lock, Plus, Trash2, ArrowLeft, AlertCircle, User, Shield, Video, CheckSquare, Square, LogOut, KeyRound } from 'lucide-react';
+import {
+  Play, Lock, Plus, Trash2, ArrowLeft, AlertCircle,
+  User, Shield, Video, CheckSquare, Square, LogOut,
+  KeyRound, Eye, EyeOff, RefreshCw
+} from 'lucide-react';
 import SafeYouTubePlayer from './SafeYouTubePlayer';
+import { supabase } from './supabaseClient';
 
 const AVATAR_OPTIONS = [
   { emoji: '🦖', color: 'bg-green-500' },
@@ -11,23 +16,8 @@ const AVATAR_OPTIONS = [
   { emoji: '🚗', color: 'bg-red-500' },
 ];
 
-const STORAGE_KEY = 'pequetube_data';
-
-function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore parse errors */ }
-  return null;
-}
-
-function saveData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 const extraerIdYouTube = (urlStr) => {
   try {
-    // Usamos la API de URL moderna para limpiar parámetros como &list=
     const url = new URL(urlStr);
     if (url.hostname.includes('youtube.com')) {
       const v = url.searchParams.get('v');
@@ -36,98 +26,229 @@ const extraerIdYouTube = (urlStr) => {
     if (url.hostname.includes('youtu.be')) {
       return url.pathname.slice(1);
     }
-  } catch {
-    // Fallback silencioso
-  }
-  
-  // Expresión regular como plan B
+  } catch { /* ignore */ }
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = urlStr.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+function Spinner({ size = 6, color = 'border-blue-500' }) {
+  return (
+    <div className={`w-${size} h-${size} border-4 ${color} border-t-transparent rounded-full animate-spin`} />
+  );
+}
+
 export default function App() {
-  // Cargar datos persistentes al inicio (síncrono)
-  const savedData = loadData();
-  
-  const [initialized, setInitialized] = useState(!!savedData);
-  const [adminPin, setAdminPin] = useState(savedData?.adminPin || '');
-  const [users, setUsers] = useState(savedData?.users || []);
-  const [videos, setVideos] = useState(savedData?.videos || []);
-  
-  // Flujo de primera vez: crear PIN de adultos
-  const [setupStep, setSetupStep] = useState(savedData ? null : 'create-pin');
-  const [setupPin, setSetupPin] = useState('');
-  const [setupPinConfirm, setSetupPinConfirm] = useState('');
-  const [setupError, setSetupError] = useState('');
+  // ─── Auth ─────────────────────────────────────────────────────────────────
+  const [session, setSession] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Estado de navegación
-  const [currentUser, setCurrentUser] = useState(null);
+  // ─── Data ──────────────────────────────────────────────────────────────────
+  const [profiles, setProfiles] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // ─── Navigation ───────────────────────────────────────────────────────────
+  const [currentProfile, setCurrentProfile] = useState(null); // null | 'adult' | profile{}
   const [videoActual, setVideoActual] = useState(null);
-  
-  // Estado del Modal de PIN (adultos)
-  const [mostrarPin, setMostrarPin] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [errorPin, setErrorPin] = useState(false);
 
-  // Estado del Modal de PIN (niños)
-  const [childPinModal, setChildPinModal] = useState(null); // user object
+  // ─── Child PIN modal ───────────────────────────────────────────────────────
+  const [childPinModal, setChildPinModal] = useState(null);
   const [childPinInput, setChildPinInput] = useState('');
   const [errorChildPin, setErrorChildPin] = useState(false);
 
-  // Estados para formularios en Panel de Adultos
-  const [nuevoNombreUsuario, setNuevoNombreUsuario] = useState('');
-  const [nuevoEmojiUsuario, setNuevoEmojiUsuario] = useState(AVATAR_OPTIONS[0]);
-  const [nuevoPinUsuario, setNuevoPinUsuario] = useState('');
-  
+  // ─── Admin – profile form ─────────────────────────────────────────────────
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  const [nuevoEmoji, setNuevoEmoji] = useState(AVATAR_OPTIONS[0]);
+  const [nuevoPin, setNuevoPin] = useState('');
+
+  // ─── Admin – video form ───────────────────────────────────────────────────
   const [nuevaUrl, setNuevaUrl] = useState('');
   const [nuevoTitulo, setNuevoTitulo] = useState('');
-  const [usuariosSeleccionados, setUsuariosSeleccionados] = useState([]);
-  const [errorAñadirVideo, setErrorAñadirVideo] = useState('');
+  const [profilesSeleccionados, setProfilesSeleccionados] = useState([]);
+  const [errorVideo, setErrorVideo] = useState('');
 
-  // Modal editar PIN
-  const [editPinUser, setEditPinUser] = useState(null); // 'admin' o user object
+  // ─── Change password modal ────────────────────────────────────────────────
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState('');
+
+  // ─── Edit child PIN modal ─────────────────────────────────────────────────
+  const [editPinProfile, setEditPinProfile] = useState(null);
   const [editPinValue, setEditPinValue] = useState('');
   const [editPinConfirm, setEditPinConfirm] = useState('');
   const [editPinError, setEditPinError] = useState('');
   const [showEditPin, setShowEditPin] = useState(false);
 
-  // Guardar en localStorage cada vez que cambian los datos
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  AUTH LISTENER
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!initialized || setupStep) return;
-    saveData({ adminPin, users, videos });
-  }, [adminPin, users, videos, initialized, setupStep]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-  // --- Funciones de Navegación e Ingreso ---
-  const handleVerificarPin = (e) => {
-    e.preventDefault();
-    if (pinInput === adminPin) {
-      setCurrentUser('adult');
-      setMostrarPin(false);
-      setPinInput('');
-      setErrorPin(false);
+  useEffect(() => {
+    if (session) {
+      loadData();
     } else {
-      setErrorPin(true);
-      setPinInput('');
+      setProfiles([]);
+      setVideos([]);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
-  const handleChildLogin = (user) => {
-    if (user.pin) {
-      // Tiene PIN, pedir contraseña
-      setChildPinModal(user);
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  DATA LOADING
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function loadData() {
+    setLoadingData(true);
+    try {
+      const [profilesRes, videosRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at'),
+        supabase
+          .from('videos')
+          .select('*, video_profiles(profile_id)')
+          .eq('user_id', session.user.id)
+          .order('created_at'),
+      ]);
+      if (profilesRes.data) setProfiles(profilesRes.data);
+      if (videosRes.data) {
+        setVideos(videosRes.data.map(v => ({
+          ...v,
+          allowedUsers: (v.video_profiles || []).map(vp => vp.profile_id),
+        })));
+      }
+    } finally {
+      setLoadingData(false);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  AUTH HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function handleLogin(e) {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password: authPassword,
+    });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(
+        error.message === 'Invalid login credentials'
+          ? 'Correu o contrasenya incorrectes.'
+          : error.message
+      );
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    setAuthError('');
+    if (authPassword.length < 6) {
+      setAuthError('La contrasenya ha de tindre almenys 6 caràcters.');
+      return;
+    }
+    if (authPassword !== authPasswordConfirm) {
+      setAuthError('Les contrasenyes no coincidixen.');
+      return;
+    }
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthSuccess("Compte creat! Revisa el teu correu per confirmar-lo i torna ací per a iniciar sessió.");
+    }
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+      redirectTo: window.location.origin,
+    });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthSuccess("Correu enviat! Revisa la teua safata d'entrada.");
+    }
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setCurrentProfile(null);
+    setVideoActual(null);
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setChangePasswordError('');
+    if (newPassword.length < 6) {
+      setChangePasswordError('La contrasenya ha de tindre almenys 6 caràcters.');
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setChangePasswordError('Les contrasenyes no coincidixen.');
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setChangePasswordError(error.message);
+    } else {
+      setChangePasswordSuccess('Contrasenya actualitzada!');
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setNewPassword('');
+        setNewPasswordConfirm('');
+        setChangePasswordSuccess('');
+      }, 1500);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  PROFILE HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleChildLogin = (profile) => {
+    if (profile.pin) {
+      setChildPinModal(profile);
       setChildPinInput('');
       setErrorChildPin(false);
     } else {
-      // Sin PIN, acceso directo
-      setCurrentUser(user);
+      setCurrentProfile(profile);
     }
   };
 
   const handleVerificarChildPin = (e) => {
     e.preventDefault();
     if (childPinInput === childPinModal.pin) {
-      setCurrentUser(childPinModal);
+      setCurrentProfile(childPinModal);
       setChildPinModal(null);
       setChildPinInput('');
       setErrorChildPin(false);
@@ -137,26 +258,37 @@ export default function App() {
     }
   };
 
-  const handleSetupPin = (e) => {
+  async function handleAddProfile(e) {
     e.preventDefault();
-    setSetupError('');
-    if (setupPin.length < 4) {
-      setSetupError('El PIN ha de tindre almenys 4 caràcters.');
-      return;
+    if (!nuevoNombre.trim()) return;
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        user_id: session.user.id,
+        name: nuevoNombre.trim(),
+        emoji: nuevoEmoji.emoji,
+        color: nuevoEmoji.color,
+        pin: nuevoPin || '',
+      })
+      .select()
+      .single();
+    if (!error && data) {
+      setProfiles(prev => [...prev, data]);
+      setNuevoNombre('');
+      setNuevoPin('');
     }
-    if (setupPin !== setupPinConfirm) {
-      setSetupError('Els PIN no coincidixen.');
-      return;
-    }
-    setAdminPin(setupPin);
-    setSetupStep(null);
-    setInitialized(true);
-    setSetupPin('');
-    setSetupPinConfirm('');
-    saveData({ adminPin: setupPin, users: [], videos: [] });
-  };
+  }
 
-  const handleEditPin = (e) => {
+  async function handleDeleteProfile(profileId) {
+    await supabase.from('profiles').delete().eq('id', profileId);
+    setProfiles(prev => prev.filter(p => p.id !== profileId));
+    setVideos(prev => prev.map(v => ({
+      ...v,
+      allowedUsers: v.allowedUsers.filter(id => id !== profileId),
+    })));
+  }
+
+  async function handleEditPin(e) {
     e.preventDefault();
     setEditPinError('');
     if (editPinValue && editPinValue.length < 4) {
@@ -167,162 +299,233 @@ export default function App() {
       setEditPinError('Els PIN no coincidixen.');
       return;
     }
-    if (editPinUser === 'admin') {
-      if (!editPinValue) {
-        setEditPinError('El PIN d\'adults és obligatori.');
-        return;
-      }
-      setAdminPin(editPinValue);
-    } else {
-      // Actualizar PIN del niño (vacío = sin PIN)
-      setUsers(users.map(u => u.id === editPinUser.id ? { ...u, pin: editPinValue || '' } : u));
+    const { error } = await supabase
+      .from('profiles')
+      .update({ pin: editPinValue || '' })
+      .eq('id', editPinProfile.id);
+    if (!error) {
+      setProfiles(prev => prev.map(p =>
+        p.id === editPinProfile.id ? { ...p, pin: editPinValue || '' } : p
+      ));
+      setShowEditPin(false);
+      setEditPinProfile(null);
+      setEditPinValue('');
+      setEditPinConfirm('');
     }
-    setShowEditPin(false);
-    setEditPinUser(null);
-    setEditPinValue('');
-    setEditPinConfirm('');
-  };
+  }
 
-  const cerrarSesion = () => {
-    setCurrentUser(null);
-    setVideoActual(null);
-  };
-
-  // --- Funciones de Gestión (Adultos) ---
-  const handleAñadirUsuario = (e) => {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  VIDEO HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function handleAddVideo(e) {
     e.preventDefault();
-    if (!nuevoNombreUsuario.trim()) return;
-    
-    const newUser = {
-      id: Date.now().toString(),
-      name: nuevoNombreUsuario,
-      emoji: nuevoEmojiUsuario.emoji,
-      color: nuevoEmojiUsuario.color,
-      pin: nuevoPinUsuario || ''
-    };
-    
-    setUsers([...users, newUser]);
-    setNuevoNombreUsuario('');
-    setNuevoPinUsuario('');
-  };
-
-  const handleEliminarUsuario = (userId) => {
-    setUsers(users.filter(u => u.id !== userId));
-    // Quitar a este usuario de los videos permitidos
-    setVideos(videos.map(v => ({
-      ...v,
-      allowedUsers: v.allowedUsers.filter(id => id !== userId)
-    })));
-  };
-
-  const toggleUsuarioParaVideo = (userId) => {
-    if (usuariosSeleccionados.includes(userId)) {
-      setUsuariosSeleccionados(usuariosSeleccionados.filter(id => id !== userId));
-    } else {
-      setUsuariosSeleccionados([...usuariosSeleccionados, userId]);
-    }
-  };
-
-  const handleAñadirVideo = (e) => {
-    e.preventDefault();
-    setErrorAñadirVideo('');
-
+    setErrorVideo('');
     if (!nuevaUrl || !nuevoTitulo) {
-      setErrorAñadirVideo('Omple l\'URL i el Títol.');
+      setErrorVideo("Omple l'URL i el Títol.");
       return;
     }
-    if (usuariosSeleccionados.length === 0) {
-      setErrorAñadirVideo('Selecciona almenys un xiquet que puga veure el vídeo.');
+    if (profilesSeleccionados.length === 0) {
+      setErrorVideo('Selecciona almenys un xiquet que puga veure el vídeo.');
       return;
     }
-
     const id = extraerIdYouTube(nuevaUrl);
-    if (!id) {
-      setErrorAñadirVideo('URL de YouTube no vàlida.');
-      return;
-    }
-    if (videos.some(v => v.id === id)) {
-      setErrorAñadirVideo('Este vídeo ja està a la biblioteca.');
-      return;
-    }
+    if (!id) { setErrorVideo('URL de YouTube no vàlida.'); return; }
+    if (videos.some(v => v.id === id)) { setErrorVideo('Este vídeo ja està a la biblioteca.'); return; }
 
-    const nuevoVideo = {
+    const thumbnail = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+    const { error: videoError } = await supabase.from('videos').insert({
       id,
+      user_id: session.user.id,
       title: nuevoTitulo,
-      thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
-      allowedUsers: usuariosSeleccionados
-    };
+      thumbnail,
+    });
+    if (videoError) { setErrorVideo('Error guardant el vídeo.'); return; }
 
-    setVideos([...videos, nuevoVideo]);
+    await supabase.from('video_profiles').insert(
+      profilesSeleccionados.map(profileId => ({ video_id: id, profile_id: profileId }))
+    );
+
+    setVideos(prev => [...prev, { id, title: nuevoTitulo, thumbnail, allowedUsers: profilesSeleccionados }]);
     setNuevaUrl('');
     setNuevoTitulo('');
-    setUsuariosSeleccionados([]);
+    setProfilesSeleccionados([]);
+  }
+
+  async function handleDeleteVideo(videoId) {
+    await supabase.from('videos').delete().eq('id', videoId);
+    setVideos(prev => prev.filter(v => v.id !== videoId));
+  }
+
+  const toggleProfile = (profileId) => {
+    setProfilesSeleccionados(prev =>
+      prev.includes(profileId) ? prev.filter(id => id !== profileId) : [...prev, profileId]
+    );
   };
 
-  const handleEliminarVideo = (videoId) => {
-    setVideos(videos.filter(v => v.id !== videoId));
-  };
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LOADING SCREEN
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center gap-6">
+        <h1 className="text-5xl font-black text-gray-800">Peque<span className="text-red-500">Tube</span></h1>
+        <Spinner size={8} />
+      </div>
+    );
+  }
 
-
-  // --- COMPONENTE: PANTALLA DE CONFIGURACIÓN INICIAL ---
-  if (setupStep === 'create-pin') {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  AUTH SCREEN
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (!session) {
     return (
       <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-4">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-black text-gray-800 mb-2 tracking-tight">
+          <h1 className="text-5xl font-black text-gray-800 mb-2">
             Peque<span className="text-red-500">Tube</span>
           </h1>
-          <p className="text-xl text-gray-600 font-medium">Benvingut! Configura el teu PIN d'adult</p>
+          <p className="text-gray-500 text-lg">Vídeos segurs per als xiquets</p>
         </div>
 
         <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
-          <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2 text-gray-800">
-            <KeyRound className="text-blue-600" /> Crear PIN d'Adults
-          </h2>
-          <p className="text-gray-500 mb-6 text-center text-sm">Aquest PIN protegeix el panell de control</p>
-          
-          <form onSubmit={handleSetupPin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">PIN (mínim 4 caràcters)</label>
-              <input
-                type="password"
-                placeholder="••••"
-                className="w-full text-center text-2xl tracking-[0.3em] p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
-                value={setupPin}
-                onChange={(e) => setSetupPin(e.target.value)}
-                autoFocus
-              />
+          {authMode !== 'forgot' && (
+            <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
+              {[['login', 'Iniciar sessió'], ['register', 'Registrar-se']].map(([mode, label]) => (
+                <button key={mode}
+                  onClick={() => { setAuthMode(mode); setAuthError(''); setAuthSuccess(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${authMode === mode ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar el PIN</label>
-              <input
-                type="password"
-                placeholder="••••"
-                className="w-full text-center text-2xl tracking-[0.3em] p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
-                value={setupPinConfirm}
-                onChange={(e) => setSetupPinConfirm(e.target.value)}
-              />
-            </div>
-            {setupError && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
-                <AlertCircle size={16} className="flex-shrink-0" />
-                <p>{setupError}</p>
+          )}
+
+          {authSuccess ? (
+            <div className="space-y-4">
+              <div className="bg-green-50 text-green-700 p-4 rounded-xl text-sm font-medium text-center leading-relaxed">
+                ✅ {authSuccess}
               </div>
-            )}
-            <button 
-              type="submit"
-              className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-            >
-              Guardar i començar
-            </button>
-          </form>
+              <button onClick={() => { setAuthMode('login'); setAuthSuccess(''); }}
+                className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors">
+                Tornar a iniciar sessió
+              </button>
+            </div>
+
+          ) : authMode === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correu electrònic</label>
+                <input type="email" placeholder="pare@exemple.com" required autoFocus
+                  className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors"
+                  value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contrasenya</label>
+                <div className="relative">
+                  <input type={showPassword ? 'text' : 'password'} placeholder="••••••" required
+                    className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors pr-12"
+                    value={authPassword} onChange={e => setAuthPassword(e.target.value)} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              {authError && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
+                  <AlertCircle size={16} className="flex-shrink-0" /><p>{authError}</p>
+                </div>
+              )}
+              <button type="submit" disabled={authLoading}
+                className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2">
+                {authLoading && <Spinner size={5} color="border-white" />}
+                Entrar
+              </button>
+              <button type="button"
+                onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthSuccess(''); }}
+                className="w-full text-center text-sm text-gray-400 hover:text-blue-500 transition-colors pt-1">
+                Has oblidat la contrasenya?
+              </button>
+            </form>
+
+          ) : authMode === 'register' ? (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correu electrònic</label>
+                <input type="email" placeholder="pare@exemple.com" required autoFocus
+                  className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors"
+                  value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contrasenya <span className="text-gray-400 font-normal">(mínim 6 caràcters)</span>
+                </label>
+                <div className="relative">
+                  <input type={showPassword ? 'text' : 'password'} placeholder="••••••" required
+                    className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors pr-12"
+                    value={authPassword} onChange={e => setAuthPassword(e.target.value)} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contrasenya</label>
+                <input type="password" placeholder="••••••" required
+                  className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors"
+                  value={authPasswordConfirm} onChange={e => setAuthPasswordConfirm(e.target.value)} />
+              </div>
+              {authError && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
+                  <AlertCircle size={16} className="flex-shrink-0" /><p>{authError}</p>
+                </div>
+              )}
+              <button type="submit" disabled={authLoading}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition-colors shadow-lg shadow-green-200 disabled:opacity-50 flex items-center justify-center gap-2">
+                {authLoading && <Spinner size={5} color="border-white" />}
+                Crear compte
+              </button>
+            </form>
+
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <button type="button"
+                onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                <ArrowLeft size={16} /> Tornar
+              </button>
+              <div>
+                <h3 className="font-bold text-gray-800 text-lg mb-1">Recuperar contrasenya</h3>
+                <p className="text-sm text-gray-500">T'enviarem un correu per restablir-la.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correu electrònic</label>
+                <input type="email" placeholder="pare@exemple.com" required autoFocus
+                  className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors"
+                  value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
+              </div>
+              {authError && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
+                  <AlertCircle size={16} className="flex-shrink-0" /><p>{authError}</p>
+                </div>
+              )}
+              <button type="submit" disabled={authLoading}
+                className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {authLoading && <Spinner size={5} color="border-white" />}
+                Enviar correu
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
   }
 
-  // --- COMPONENTE: PANTALLA DE INICIO ---
-  if (currentUser === null) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  HOME SCREEN
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (currentProfile === null) {
     return (
       <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-4">
         <div className="text-center mb-12">
@@ -332,82 +535,37 @@ export default function App() {
           <p className="text-xl text-gray-600 font-medium">Qui està veient hui?</p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-8 max-w-4xl">
-          {/* Tarjetas de Niños */}
-          {users.map(user => (
-            <div 
-              key={user.id} 
-              onClick={() => handleChildLogin(user)}
-              className="flex flex-col items-center cursor-pointer group transform transition-transform hover:scale-110"
-            >
-              <div className={`w-32 h-32 rounded-full ${user.color} flex items-center justify-center text-6xl shadow-lg border-4 border-white mb-4 group-hover:shadow-xl relative`}>
-                {user.emoji}
-                {user.pin && (
-                  <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow">
-                    <Lock size={14} className="text-gray-500" />
-                  </div>
-                )}
-              </div>
-              <span className="text-2xl font-bold text-gray-700">{user.name}</span>
-            </div>
-          ))}
-
-          {/* Botón de Adultos */}
-          <div 
-            onClick={() => setMostrarPin(true)}
-            className="flex flex-col items-center cursor-pointer group transform transition-transform hover:scale-110 ml-8"
-          >
-            <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center shadow-inner border-4 border-white mb-4">
-              <Shield size={48} className="text-gray-500 group-hover:text-gray-700" />
-            </div>
-            <span className="text-2xl font-bold text-gray-500">Pares</span>
-          </div>
-        </div>
-
-        {/* Modal PIN */}
-        {mostrarPin && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl transform transition-all">
-              <h2 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2 text-gray-800">
-                <Shield className="text-blue-600" /> Zona d'Adults
-              </h2>
-              <p className="text-gray-500 mb-8 text-center text-sm">Introduïx el PIN d'adults</p>
-              
-              <form onSubmit={handleVerificarPin}>
-                <input
-                  type="password"
-                  placeholder="****"
-                  className={`w-full text-center text-4xl tracking-[0.5em] p-4 rounded-2xl mb-6 bg-gray-50 border-2 outline-none transition-colors ${errorPin ? 'border-red-500 text-red-600' : 'border-gray-200 focus:border-blue-500'}`}
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  autoFocus
-                />
-                {errorPin && <p className="text-red-500 text-sm mb-4 text-center font-medium">PIN incorrecte.</p>}
-                
-                <div className="flex gap-4">
-                  <button 
-                    type="button"
-                    onClick={() => { setMostrarPin(false); setErrorPin(false); setPinInput(''); }}
-                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
-                  >
-                    Tornar
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-                  >
-                    Entrar
-                  </button>
+        {loadingData ? (
+          <Spinner size={10} />
+        ) : (
+          <div className="flex flex-wrap justify-center gap-8 max-w-4xl">
+            {profiles.map(profile => (
+              <div key={profile.id} onClick={() => handleChildLogin(profile)}
+                className="flex flex-col items-center cursor-pointer group transform transition-transform hover:scale-110">
+                <div className={`w-32 h-32 rounded-full ${profile.color} flex items-center justify-center text-6xl shadow-lg border-4 border-white mb-4 group-hover:shadow-xl relative`}>
+                  {profile.emoji}
+                  {profile.pin && (
+                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow">
+                      <Lock size={14} className="text-gray-500" />
+                    </div>
+                  )}
                 </div>
-              </form>
+                <span className="text-2xl font-bold text-gray-700">{profile.name}</span>
+              </div>
+            ))}
+            <div onClick={() => setCurrentProfile('adult')}
+              className="flex flex-col items-center cursor-pointer group transform transition-transform hover:scale-110 ml-8">
+              <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center shadow-inner border-4 border-white mb-4">
+                <Shield size={48} className="text-gray-500 group-hover:text-gray-700" />
+              </div>
+              <span className="text-2xl font-bold text-gray-500">Pares</span>
             </div>
           </div>
         )}
 
-        {/* Modal PIN de Niño */}
         {childPinModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl transform transition-all">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
               <div className="flex flex-col items-center mb-4">
                 <div className={`w-20 h-20 rounded-full ${childPinModal.color} flex items-center justify-center text-4xl shadow-lg mb-3`}>
                   {childPinModal.emoji}
@@ -415,30 +573,19 @@ export default function App() {
                 <h2 className="text-xl font-bold text-gray-800">{childPinModal.name}</h2>
                 <p className="text-gray-500 text-sm">Introduïx la teua contrasenya</p>
               </div>
-              
               <form onSubmit={handleVerificarChildPin}>
-                <input
-                  type="password"
-                  placeholder="••••"
+                <input type="password" placeholder="••••"
                   className={`w-full text-center text-3xl tracking-[0.4em] p-4 rounded-2xl mb-4 bg-gray-50 border-2 outline-none transition-colors ${errorChildPin ? 'border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
-                  value={childPinInput}
-                  onChange={(e) => setChildPinInput(e.target.value)}
-                  autoFocus
-                />
+                  value={childPinInput} onChange={e => setChildPinInput(e.target.value)} autoFocus />
                 {errorChildPin && <p className="text-red-500 text-sm mb-3 text-center font-medium">Contrasenya incorrecta.</p>}
-                
                 <div className="flex gap-4">
-                  <button 
-                    type="button"
+                  <button type="button"
                     onClick={() => { setChildPinModal(null); setErrorChildPin(false); setChildPinInput(''); }}
-                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
-                  >
+                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors">
                     Tornar
                   </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-                  >
+                  <button type="submit"
+                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
                     Entrar
                   </button>
                 </div>
@@ -450,68 +597,59 @@ export default function App() {
     );
   }
 
-  // --- COMPONENTE: PANEL DE ADULTOS ---
-  if (currentUser === 'adult') {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ADMIN PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (currentProfile === 'adult') {
     return (
       <div className="min-h-screen bg-gray-100 p-4 md:p-8 font-sans">
         <div className="max-w-6xl mx-auto">
-          
-          <div className="flex items-center justify-between mb-8 bg-white p-4 rounded-2xl shadow-sm">
+
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-8 bg-white p-4 rounded-2xl shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-                <Shield size={28} />
-              </div>
+              <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Shield size={28} /></div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">Tauler de Control</h1>
-                <p className="text-sm text-gray-500">Afig vídeos i gestiona perfils</p>
+                <p className="text-sm text-gray-400">{session.user.email}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => { setEditPinUser('admin'); setEditPinValue(''); setEditPinConfirm(''); setEditPinError(''); setShowEditPin(true); }}
-                className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl transition-colors font-medium text-sm"
-              >
-                <KeyRound size={16} /> Canviar PIN
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { setShowChangePassword(true); setChangePasswordError(''); setChangePasswordSuccess(''); }}
+                className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl transition-colors font-medium text-sm">
+                <KeyRound size={16} /> Canviar contrasenya
               </button>
-              <button 
-                onClick={cerrarSesion}
-                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl transition-colors font-medium"
-              >
-                <LogOut size={18} /> Eixir
+              <button onClick={() => setCurrentProfile(null)}
+                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl transition-colors font-medium text-sm">
+                <ArrowLeft size={16} /> Tornar
+              </button>
+              <button onClick={handleSignOut}
+                className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-xl transition-colors font-medium text-sm">
+                <LogOut size={16} /> Tancar sessió
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Columna Izquierda: Formularios */}
             <div className="space-y-8 lg:col-span-1">
-              
-              {/* Formulario Crear Niño */}
+
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
                   <User className="text-green-500" /> Crear Perfil de Xiquet
                 </h2>
-                <form onSubmit={handleAñadirUsuario} className="space-y-4">
+                <form onSubmit={handleAddProfile} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Sofia"
+                    <input type="text" placeholder="Ex: Sofia"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                      value={nuevoNombreUsuario}
-                      onChange={(e) => setNuevoNombreUsuario(e.target.value)}
-                    />
+                      value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Avatar</label>
                     <div className="flex flex-wrap gap-2">
                       {AVATAR_OPTIONS.map((opt, i) => (
-                        <div 
-                          key={i}
-                          onClick={() => setNuevoEmojiUsuario(opt)}
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-xl cursor-pointer transition-transform ${opt.color} ${nuevoEmojiUsuario.emoji === opt.emoji ? 'ring-4 ring-offset-2 ring-gray-800 scale-110' : 'opacity-80 hover:opacity-100'}`}
-                        >
+                        <div key={i} onClick={() => setNuevoEmoji(opt)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-xl cursor-pointer transition-transform ${opt.color} ${nuevoEmoji.emoji === opt.emoji ? 'ring-4 ring-offset-2 ring-gray-800 scale-110' : 'opacity-80 hover:opacity-100'}`}>
                           {opt.emoji}
                         </div>
                       ))}
@@ -519,40 +657,33 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Contrasenya (opcional)</label>
-                    <input 
-                      type="password" 
-                      placeholder="Deixar buit = sense contrasenya"
+                    <input type="password" placeholder="Deixar buit = sense contrasenya"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                      value={nuevoPinUsuario}
-                      onChange={(e) => setNuevoPinUsuario(e.target.value)}
-                    />
+                      value={nuevoPin} onChange={e => setNuevoPin(e.target.value)} />
                   </div>
-                  <button type="submit" className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                  <button type="submit"
+                    className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
                     <Plus size={18} /> Afegir Perfil
                   </button>
                 </form>
-
-                {/* Lista rápida de niños */}
                 <div className="mt-6 space-y-2">
-                  {users.map(u => (
-                    <div key={u.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                  {profiles.map(p => (
+                    <div key={p.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full ${u.color} flex items-center justify-center text-sm`}>{u.emoji}</div>
-                        <span className="font-medium text-sm">{u.name}</span>
-                        {u.pin ? (
-                          <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Lock size={10} /> PIN</span>
-                        ) : (
-                          <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">Sense PIN</span>
-                        )}
+                        <div className={`w-8 h-8 rounded-full ${p.color} flex items-center justify-center text-sm`}>{p.emoji}</div>
+                        <span className="font-medium text-sm">{p.name}</span>
+                        {p.pin
+                          ? <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Lock size={10} /> PIN</span>
+                          : <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">Sense PIN</span>
+                        }
                       </div>
                       <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => { setEditPinUser(u); setEditPinValue(''); setEditPinConfirm(''); setEditPinError(''); setShowEditPin(true); }} 
-                          className="text-gray-400 hover:text-blue-500 p-1" title="Editar contrasenya"
-                        >
+                        <button
+                          onClick={() => { setEditPinProfile(p); setEditPinValue(''); setEditPinConfirm(''); setEditPinError(''); setShowEditPin(true); }}
+                          className="text-gray-400 hover:text-blue-500 p-1" title="Editar contrasenya">
                           <KeyRound size={14} />
                         </button>
-                        <button onClick={() => handleEliminarUsuario(u.id)} className="text-gray-400 hover:text-red-500 p-1">
+                        <button onClick={() => handleDeleteProfile(p.id)} className="text-gray-400 hover:text-red-500 p-1">
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -561,113 +692,91 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Formulario Añadir Video */}
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
                   <Video className="text-red-500" /> Afegir Vídeo Nou
                 </h2>
-                <form onSubmit={handleAñadirVideo} className="space-y-4">
+                <form onSubmit={handleAddVideo} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Enllaç de YouTube</label>
-                    <input 
-                      type="text" 
-                      placeholder="https://youtube.com/watch?v=..."
+                    <input type="text" placeholder="https://youtube.com/watch?v=..."
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                      value={nuevaUrl}
-                      onChange={(e) => setNuevaUrl(e.target.value)}
-                    />
+                      value={nuevaUrl} onChange={e => setNuevaUrl(e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Títol</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Aprén els números"
+                    <input type="text" placeholder="Ex: Aprén els números"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                      value={nuevoTitulo}
-                      onChange={(e) => setNuevoTitulo(e.target.value)}
-                    />
+                      value={nuevoTitulo} onChange={e => setNuevoTitulo(e.target.value)} />
                   </div>
-                  
-                  {/* Selector de Niños para el video */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Qui pot veure este vídeo?</label>
-                    {users.length === 0 ? (
+                    {profiles.length === 0 ? (
                       <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">Primer has de crear un perfil de xiquet.</p>
                     ) : (
                       <div className="space-y-2">
-                        {users.map(u => (
-                          <div 
-                            key={u.id} 
-                            onClick={() => toggleUsuarioParaVideo(u.id)}
-                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border ${usuariosSeleccionados.includes(u.id) ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}
-                          >
-                            {usuariosSeleccionados.includes(u.id) ? <CheckSquare className="text-blue-500" size={20} /> : <Square className="text-gray-400" size={20} />}
-                            <div className={`w-6 h-6 rounded-full ${u.color} flex items-center justify-center text-xs`}>{u.emoji}</div>
-                            <span className="font-medium text-sm">{u.name}</span>
+                        {profiles.map(p => (
+                          <div key={p.id} onClick={() => toggleProfile(p.id)}
+                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border ${profilesSeleccionados.includes(p.id) ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}>
+                            {profilesSeleccionados.includes(p.id)
+                              ? <CheckSquare className="text-blue-500" size={20} />
+                              : <Square className="text-gray-400" size={20} />
+                            }
+                            <div className={`w-6 h-6 rounded-full ${p.color} flex items-center justify-center text-xs`}>{p.emoji}</div>
+                            <span className="font-medium text-sm">{p.name}</span>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-
-                  {errorAñadirVideo && (
+                  {errorVideo && (
                     <div className="flex items-start gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
-                      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                      <p>{errorAñadirVideo}</p>
+                      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" /><p>{errorVideo}</p>
                     </div>
                   )}
-
-                  <button 
-                    type="submit" 
-                    disabled={users.length === 0}
-                    className="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                  <button type="submit" disabled={profiles.length === 0}
+                    className="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <Plus size={18} /> Guardar Vídeo
                   </button>
                 </form>
               </div>
-
             </div>
 
-            {/* Columna Derecha: Biblioteca global */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm">
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-2">
-                Biblioteca Global de Vídeos ({videos.length})
-              </h2>
-              
+              <div className="flex items-center justify-between mb-6 border-b pb-2">
+                <h2 className="text-lg font-bold">Biblioteca Global de Vídeos ({videos.length})</h2>
+                <button onClick={loadData} className="text-gray-400 hover:text-blue-500 p-1 transition-colors" title="Actualitzar">
+                  <RefreshCw size={16} />
+                </button>
+              </div>
               <div className="space-y-4">
                 {videos.length === 0 ? (
                   <p className="text-gray-500 text-center py-12">No hi ha vídeos a la biblioteca.</p>
                 ) : (
                   videos.map(video => (
-                    <div key={video.id} className="flex gap-4 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors group">
+                    <div key={video.id} className="flex gap-4 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
                       <img src={video.thumbnail} alt={video.title} className="w-32 h-20 object-cover rounded-lg" />
                       <div className="flex-1 flex flex-col justify-between">
-                        <div>
-                          <h3 className="font-bold text-gray-800 line-clamp-1">{video.title}</h3>
-                          <div className="flex items-center gap-1 mt-2 flex-wrap">
-                            <span className="text-xs text-gray-500 mr-1">Visible per a:</span>
-                            {video.allowedUsers.length === 0 ? (
-                              <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">Cap</span>
-                            ) : (
-                              video.allowedUsers.map(uid => {
-                                const user = users.find(u => u.id === uid);
-                                if (!user) return null;
-                                return (
-                                  <div key={uid} className={`w-5 h-5 rounded-full ${user.color} flex items-center justify-center text-[10px]`} title={user.name}>
-                                    {user.emoji}
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
+                        <h3 className="font-bold text-gray-800 line-clamp-1">{video.title}</h3>
+                        <div className="flex items-center gap-1 mt-2 flex-wrap">
+                          <span className="text-xs text-gray-500 mr-1">Visible per a:</span>
+                          {video.allowedUsers.length === 0 ? (
+                            <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">Cap</span>
+                          ) : (
+                            video.allowedUsers.map(uid => {
+                              const profile = profiles.find(p => p.id === uid);
+                              if (!profile) return null;
+                              return (
+                                <div key={uid} className={`w-5 h-5 rounded-full ${profile.color} flex items-center justify-center text-[10px]`} title={profile.name}>
+                                  {profile.emoji}
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
-                      <button 
-                        onClick={() => handleEliminarVideo(video.id)}
-                        className="self-center p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar de la biblioteca"
-                      >
+                      <button onClick={() => handleDeleteVideo(video.id)}
+                        className="self-center p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 size={20} />
                       </button>
                     </div>
@@ -675,67 +784,87 @@ export default function App() {
                 )}
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* Modal Editar PIN */}
+        {showChangePassword && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+              <h2 className="text-xl font-bold mb-1 text-center text-gray-800">🔒 Canviar contrasenya</h2>
+              <p className="text-gray-500 mb-6 text-center text-sm">Introduïx la nova contrasenya d'accés</p>
+              {changePasswordSuccess ? (
+                <div className="bg-green-50 text-green-700 p-4 rounded-xl text-sm font-medium text-center">
+                  ✅ {changePasswordSuccess}
+                </div>
+              ) : (
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nova contrasenya</label>
+                    <input type="password" placeholder="Mínim 6 caràcters"
+                      className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
+                      value={newPassword} onChange={e => setNewPassword(e.target.value)} autoFocus />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar</label>
+                    <input type="password" placeholder="••••••"
+                      className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
+                      value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)} />
+                  </div>
+                  {changePasswordError && (
+                    <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
+                      <AlertCircle size={16} /><p>{changePasswordError}</p>
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setShowChangePassword(false)}
+                      className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors">
+                      Cancel·lar
+                    </button>
+                    <button type="submit"
+                      className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
+                      Guardar
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
         {showEditPin && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
               <h2 className="text-xl font-bold mb-1 text-center text-gray-800">
-                {editPinUser === 'admin' ? '🔒 Canviar PIN d\'Adults' : `🔑 Contrasenya de ${editPinUser?.name}`}
+                🔑 Contrasenya de {editPinProfile?.name}
               </h2>
-              <p className="text-gray-500 mb-6 text-center text-sm">
-                {editPinUser === 'admin' 
-                  ? 'Introduïx el nou PIN d\'accés al tauler'
-                  : 'Deixar buit per a llevar la contrasenya'}
-              </p>
-
+              <p className="text-gray-500 mb-6 text-center text-sm">Deixar buit per a llevar la contrasenya</p>
               <form onSubmit={handleEditPin} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {editPinUser === 'admin' ? 'Nou PIN' : 'Nova contrasenya'}
-                  </label>
-                  <input
-                    type="password"
-                    placeholder={editPinUser === 'admin' ? '••••' : 'Buit = sense contrasenya'}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nova contrasenya</label>
+                  <input type="password" placeholder="Buit = sense contrasenya"
                     className="w-full text-center text-xl tracking-[0.3em] p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
-                    value={editPinValue}
-                    onChange={(e) => setEditPinValue(e.target.value)}
-                    autoFocus
-                  />
+                    value={editPinValue} onChange={e => setEditPinValue(e.target.value)} autoFocus />
                 </div>
                 {editPinValue && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar</label>
-                    <input
-                      type="password"
-                      placeholder="••••"
+                    <input type="password" placeholder="••••"
                       className="w-full text-center text-xl tracking-[0.3em] p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
-                      value={editPinConfirm}
-                      onChange={(e) => setEditPinConfirm(e.target.value)}
-                    />
+                      value={editPinConfirm} onChange={e => setEditPinConfirm(e.target.value)} />
                   </div>
                 )}
                 {editPinError && (
                   <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
-                    <AlertCircle size={16} className="flex-shrink-0" />
-                    <p>{editPinError}</p>
+                    <AlertCircle size={16} /><p>{editPinError}</p>
                   </div>
                 )}
                 <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setShowEditPin(false); setEditPinError(''); }}
-                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
-                  >
+                  <button type="button" onClick={() => { setShowEditPin(false); setEditPinError(''); }}
+                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors">
                     Cancel·lar
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-                  >
+                  <button type="submit"
+                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
                     Guardar
                   </button>
                 </div>
@@ -747,77 +876,53 @@ export default function App() {
     );
   }
 
-  // --- COMPONENTE: VISTA DE NIÑO ---
-  // Obtener solo los videos permitidos para el niño actual
-  const misVideos = videos.filter(v => v.allowedUsers.includes(currentUser.id));
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  CHILD VIEW
+  // ═══════════════════════════════════════════════════════════════════════════
+  const misVideos = videos.filter(v => v.allowedUsers.includes(currentProfile.id));
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
-      {/* Barra superior de Niño */}
-      <nav className={`text-white px-4 h-16 flex items-center justify-between shadow-md ${currentUser.color}`}>
-        <div 
-          className="flex items-center gap-3 cursor-pointer"
-          onClick={() => setVideoActual(null)}
-        >
+      <nav className={`text-white px-4 h-16 flex items-center justify-between shadow-md ${currentProfile.color}`}>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setVideoActual(null)}>
           <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
-            <span className="text-2xl">{currentUser.emoji}</span>
+            <span className="text-2xl">{currentProfile.emoji}</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">Hola, {currentUser.name}!</span>
+          <span className="text-xl font-bold tracking-tight">Hola, {currentProfile.name}!</span>
         </div>
-
-        <button 
-          onClick={cerrarSesion}
-          className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-colors text-sm font-bold backdrop-blur-sm"
-        >
+        <button onClick={() => { setCurrentProfile(null); setVideoActual(null); }}
+          className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-colors text-sm font-bold backdrop-blur-sm">
           <LogOut size={16} /> Eixir
         </button>
       </nav>
 
-      {/* Área de Visualización */}
       <main className="flex-1 p-4 md:p-6 overflow-y-auto max-w-7xl w-full mx-auto">
-        
         {videoActual ? (
-          // Vista Reproductor
           <div className="flex flex-col xl:flex-row gap-6">
             <div className="flex-1">
-              <button 
-                onClick={() => setVideoActual(null)}
-                className="mb-4 flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors bg-white px-4 py-2 rounded-full shadow-sm"
-              >
+              <button onClick={() => setVideoActual(null)}
+                className="mb-4 flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors bg-white px-4 py-2 rounded-full shadow-sm">
                 <ArrowLeft size={20} /> Tornar als meus vídeos
               </button>
-              
               <SafeYouTubePlayer
                 videoId={videoActual.id}
                 hasNext={misVideos.indexOf(videoActual) < misVideos.length - 1}
                 hasPrev={misVideos.indexOf(videoActual) > 0}
-                onNext={() => {
-                  const idx = misVideos.indexOf(videoActual);
-                  if (idx < misVideos.length - 1) setVideoActual(misVideos[idx + 1]);
-                }}
-                onPrev={() => {
-                  const idx = misVideos.indexOf(videoActual);
-                  if (idx > 0) setVideoActual(misVideos[idx - 1]);
-                }}
+                onNext={() => { const idx = misVideos.indexOf(videoActual); if (idx < misVideos.length - 1) setVideoActual(misVideos[idx + 1]); }}
+                onPrev={() => { const idx = misVideos.indexOf(videoActual); if (idx > 0) setVideoActual(misVideos[idx - 1]); }}
                 siblingVideos={misVideos.filter(v => v.id !== videoActual.id)}
-                onSelectVideo={(video) => setVideoActual(video)}
+                onSelectVideo={video => setVideoActual(video)}
               />
               <h1 className="text-2xl font-bold mt-6 ml-2">{videoActual.title}</h1>
             </div>
-
-            {/* Lista "Siguientes" (solo videos del niño) */}
             <div className="w-full xl:w-96 flex flex-col gap-4">
               <h3 className="font-bold text-xl mb-2 text-gray-800">Continua veient</h3>
               <div className="space-y-4">
                 {misVideos.filter(v => v.id !== videoActual.id).map(video => (
-                  <div 
-                    key={video.id}
-                    className="flex gap-3 cursor-pointer group bg-white p-2 rounded-2xl shadow-sm hover:shadow-md transition-all"
-                    onClick={() => setVideoActual(video)}
-                  >
+                  <div key={video.id} onClick={() => setVideoActual(video)}
+                    className="flex gap-3 cursor-pointer group bg-white p-2 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="relative w-40 aspect-video rounded-xl overflow-hidden bg-gray-200 flex-shrink-0">
                       <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>
                     </div>
                     <div className="flex-1 py-1 pr-2">
                       <h4 className="font-bold text-sm text-gray-800 line-clamp-3 group-hover:text-blue-600 transition-colors leading-tight">{video.title}</h4>
@@ -828,10 +933,8 @@ export default function App() {
             </div>
           </div>
         ) : (
-          // Vista Cuadrícula de Niño
           <div>
             <h2 className="text-3xl font-black mb-8 text-gray-800 ml-2">Els teus vídeos favorits</h2>
-            
             {misVideos.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-3xl shadow-sm border-2 border-dashed border-gray-200 p-8 text-center">
                 <Video size={64} className="mb-4 text-gray-300" />
@@ -841,18 +944,10 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {misVideos.map(video => (
-                  <div 
-                    key={video.id} 
-                    className="flex flex-col group relative bg-white rounded-3xl p-3 shadow-sm hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 border border-gray-100"
-                    onClick={() => setVideoActual(video)}
-                  >
+                  <div key={video.id} onClick={() => setVideoActual(video)}
+                    className="flex flex-col group relative bg-white rounded-3xl p-3 shadow-sm hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 border border-gray-100">
                     <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gray-200 mb-3">
-                      <img 
-                        src={video.thumbnail} 
-                        alt={video.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors"></div>
+                      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
                         <Play size={12} className="inline mr-1 mb-0.5" fill="currentColor" />
                         Veure ara

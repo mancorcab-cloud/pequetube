@@ -23,6 +23,7 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   } else {
     mainWindow.loadURL('http://localhost:5174');
+    mainWindow.webContents.openDevTools();
   }
 
   // Block navigation to external URLs (safety for kids)

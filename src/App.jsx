@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Play, Lock, Plus, Trash2, ArrowLeft, AlertCircle,
   User, Shield, Video, CheckSquare, Square, LogOut,
-  KeyRound, Eye, EyeOff, RefreshCw
+  KeyRound, Eye, EyeOff, RefreshCw, Tag
 } from 'lucide-react';
 import SafeYouTubePlayer from './SafeYouTubePlayer';
 import { supabase } from './supabaseClient';
@@ -54,6 +54,7 @@ export default function App() {
   // ─── Data ──────────────────────────────────────────────────────────────────
   const [profiles, setProfiles] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
 
   // ─── Navigation ───────────────────────────────────────────────────────────
@@ -75,6 +76,14 @@ export default function App() {
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [profilesSeleccionados, setProfilesSeleccionados] = useState([]);
   const [errorVideo, setErrorVideo] = useState('');
+  const [videoCategoryId, setVideoCategoryId] = useState('');
+
+  // ─── Admin – category form ────────────────────────────────────────────────
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('');
+  const [nuevaCategoriaEmoji, setNuevaCategoriaEmoji] = useState('🎭');
+
+  // ─── Child – category filter ──────────────────────────────────────────────
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   // ─── Change password modal ────────────────────────────────────────────────
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -120,7 +129,7 @@ export default function App() {
   async function loadData() {
     setLoadingData(true);
     try {
-      const [profilesRes, videosRes] = await Promise.all([
+      const [profilesRes, videosRes, categoriesRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('*')
@@ -131,6 +140,11 @@ export default function App() {
           .select('*, video_profiles(profile_id)')
           .eq('user_id', session.user.id)
           .order('created_at'),
+        supabase
+          .from('categories')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at'),
       ]);
       if (profilesRes.data) setProfiles(profilesRes.data);
       if (videosRes.data) {
@@ -139,6 +153,7 @@ export default function App() {
           allowedUsers: (v.video_profiles || []).map(vp => vp.profile_id),
         })));
       }
+      if (categoriesRes.data) setCategories(categoriesRes.data);
     } finally {
       setLoadingData(false);
     }
@@ -236,6 +251,7 @@ export default function App() {
   //  PROFILE HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
   const handleChildLogin = (profile) => {
+    setCategoryFilter('all');
     if (profile.pin) {
       setChildPinModal(profile);
       setChildPinInput('');
@@ -248,6 +264,7 @@ export default function App() {
   const handleVerificarChildPin = (e) => {
     e.preventDefault();
     if (childPinInput === childPinModal.pin) {
+      setCategoryFilter('all');
       setCurrentProfile(childPinModal);
       setChildPinModal(null);
       setChildPinInput('');
@@ -338,6 +355,7 @@ export default function App() {
       user_id: session.user.id,
       title: nuevoTitulo,
       thumbnail,
+      category_id: videoCategoryId || null,
     });
     if (videoError) { setErrorVideo('Error guardant el vídeo.'); return; }
 
@@ -345,15 +363,44 @@ export default function App() {
       profilesSeleccionados.map(profileId => ({ video_id: id, profile_id: profileId }))
     );
 
-    setVideos(prev => [...prev, { id, title: nuevoTitulo, thumbnail, allowedUsers: profilesSeleccionados }]);
+    setVideos(prev => [...prev, { id, title: nuevoTitulo, thumbnail, category_id: videoCategoryId || null, allowedUsers: profilesSeleccionados }]);
     setNuevaUrl('');
     setNuevoTitulo('');
     setProfilesSeleccionados([]);
+    setVideoCategoryId('');
   }
 
   async function handleDeleteVideo(videoId) {
     await supabase.from('videos').delete().eq('id', videoId);
     setVideos(prev => prev.filter(v => v.id !== videoId));
+  }
+
+  async function handleAddCategory(e) {
+    e.preventDefault();
+    if (!nuevaCategoriaNombre.trim()) return;
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({
+        user_id: session.user.id,
+        name: nuevaCategoriaNombre.trim(),
+        emoji: nuevaCategoriaEmoji || '📁',
+      })
+      .select()
+      .single();
+    if (!error && data) {
+      setCategories(prev => [...prev, data]);
+      setNuevaCategoriaNombre('');
+      setNuevaCategoriaEmoji('🎭');
+    }
+  }
+
+  async function handleDeleteCategory(categoryId) {
+    await supabase.from('categories').delete().eq('id', categoryId);
+    setCategories(prev => prev.filter(c => c.id !== categoryId));
+    setVideos(prev => prev.map(v =>
+      v.category_id === categoryId ? { ...v, category_id: null } : v
+    ));
+    if (categoryFilter === categoryId) setCategoryFilter('all');
   }
 
   const toggleProfile = (profileId) => {
@@ -694,6 +741,44 @@ export default function App() {
 
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
+                  <Tag className="text-purple-500" /> Temàtiques
+                </h2>
+                <form onSubmit={handleAddCategory} className="space-y-3 mb-4">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="🐉" maxLength={2}
+                      className="w-14 p-2.5 text-center text-xl bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={nuevaCategoriaEmoji} onChange={e => setNuevaCategoriaEmoji(e.target.value)} />
+                    <input type="text" placeholder="Nom de la temàtica (ex: Pepa Pig)"
+                      className="flex-1 p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      value={nuevaCategoriaNombre} onChange={e => setNuevaCategoriaNombre(e.target.value)} />
+                  </div>
+                  <button type="submit"
+                    className="w-full py-2 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 text-sm">
+                    <Plus size={16} /> Afegir Temàtica
+                  </button>
+                </form>
+                <div className="space-y-2">
+                  {categories.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-2">Encara no hi ha temàtiques.</p>
+                  ) : (
+                    categories.map(c => (
+                      <div key={c.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{c.emoji}</span>
+                          <span className="font-medium text-sm">{c.name}</span>
+                          <span className="text-xs text-gray-400">({videos.filter(v => v.category_id === c.id).length})</span>
+                        </div>
+                        <button onClick={() => handleDeleteCategory(c.id)} className="text-gray-400 hover:text-red-500 p-1">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
                   <Video className="text-red-500" /> Afegir Vídeo Nou
                 </h2>
                 <form onSubmit={handleAddVideo} className="space-y-4">
@@ -729,6 +814,19 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                  {categories.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Temàtica (opcional)</label>
+                      <select
+                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                        value={videoCategoryId} onChange={e => setVideoCategoryId(e.target.value)}>
+                        <option value="">-- Sense temàtica --</option>
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {errorVideo && (
                     <div className="flex items-start gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm">
                       <AlertCircle size={16} className="mt-0.5 flex-shrink-0" /><p>{errorVideo}</p>
@@ -758,6 +856,7 @@ export default function App() {
                       <img src={video.thumbnail} alt={video.title} className="w-32 h-20 object-cover rounded-lg" />
                       <div className="flex-1 flex flex-col justify-between">
                         <h3 className="font-bold text-gray-800 line-clamp-1">{video.title}</h3>
+                        {video.category_id && (() => { const cat = categories.find(c => c.id === video.category_id); return cat ? <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full mt-1">{cat.emoji} {cat.name}</span> : null; })()}
                         <div className="flex items-center gap-1 mt-2 flex-wrap">
                           <span className="text-xs text-gray-500 mr-1">Visible per a:</span>
                           {video.allowedUsers.length === 0 ? (
@@ -934,30 +1033,55 @@ export default function App() {
           </div>
         ) : (
           <div>
-            <h2 className="text-3xl font-black mb-8 text-gray-800 ml-2">Els teus vídeos favorits</h2>
-            {misVideos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-3xl shadow-sm border-2 border-dashed border-gray-200 p-8 text-center">
-                <Video size={64} className="mb-4 text-gray-300" />
-                <p className="text-xl font-bold text-gray-600">Encara no tens vídeos.</p>
-                <p className="text-md">Demana-li a un adult que t'en afegisca!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {misVideos.map(video => (
-                  <div key={video.id} onClick={() => setVideoActual(video)}
-                    className="flex flex-col group relative bg-white rounded-3xl p-3 shadow-sm hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 border border-gray-100">
-                    <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gray-200 mb-3">
-                      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
-                        <Play size={12} className="inline mr-1 mb-0.5" fill="currentColor" />
-                        Veure ara
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-gray-800 px-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{video.title}</h3>
-                  </div>
+            <h2 className="text-3xl font-black mb-6 text-gray-800 ml-2">Els teus vídeos favorits</h2>
+            {categories.filter(c => misVideos.some(v => v.category_id === c.id)).length > 0 && (
+              <div className="flex gap-2 mb-6 overflow-x-auto pb-2 flex-nowrap">
+                <button onClick={() => setCategoryFilter('all')}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full font-bold text-sm transition-all ${categoryFilter === 'all' ? `${currentProfile.color} text-white shadow-md` : 'bg-white text-gray-600 hover:bg-gray-100'}`}>
+                  ✨ Tots
+                </button>
+                {categories.filter(c => misVideos.some(v => v.category_id === c.id)).map(c => (
+                  <button key={c.id} onClick={() => setCategoryFilter(c.id)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${categoryFilter === c.id ? `${currentProfile.color} text-white shadow-md` : 'bg-white text-gray-600 hover:bg-gray-100'}`}>
+                    {c.emoji} {c.name}
+                  </button>
                 ))}
+                {misVideos.some(v => !v.category_id) && (
+                  <button onClick={() => setCategoryFilter('none')}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full font-bold text-sm transition-all ${categoryFilter === 'none' ? `${currentProfile.color} text-white shadow-md` : 'bg-white text-gray-600 hover:bg-gray-100'}`}>
+                    📁 Altres
+                  </button>
+                )}
               </div>
             )}
+            {(() => {
+              const filtered = categoryFilter === 'all' ? misVideos
+                : categoryFilter === 'none' ? misVideos.filter(v => !v.category_id)
+                : misVideos.filter(v => v.category_id === categoryFilter);
+              return filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-3xl shadow-sm border-2 border-dashed border-gray-200 p-8 text-center">
+                  <Video size={64} className="mb-4 text-gray-300" />
+                  <p className="text-xl font-bold text-gray-600">Encara no tens vídeos.</p>
+                  <p className="text-md">Demana-li a un adult que t'en afegisca!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filtered.map(video => (
+                    <div key={video.id} onClick={() => setVideoActual(video)}
+                      className="flex flex-col group relative bg-white rounded-3xl p-3 shadow-sm hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 border border-gray-100">
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gray-200 mb-3">
+                        <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
+                          <Play size={12} className="inline mr-1 mb-0.5" fill="currentColor" />
+                          Veure ara
+                        </div>
+                      </div>
+                      <h3 className="font-bold text-gray-800 px-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{video.title}</h3>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </main>

@@ -89,6 +89,7 @@ export default function App() {
   const [editVideoModal, setEditVideoModal] = useState(null);
   const [editVideoTitle, setEditVideoTitle] = useState('');
   const [editVideoCategoryId, setEditVideoCategoryId] = useState('');
+  const [editVideoAllowedUsers, setEditVideoAllowedUsers] = useState([]);
 
   // ─── Change password modal ────────────────────────────────────────────────
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -384,6 +385,7 @@ export default function App() {
     setEditVideoModal(video);
     setEditVideoTitle(video.title);
     setEditVideoCategoryId(video.category_id || '');
+    setEditVideoAllowedUsers(video.allowedUsers || []);
   }
 
   async function handleSaveEditVideo(e) {
@@ -397,9 +399,16 @@ export default function App() {
       })
       .eq('id', editVideoModal.id);
     if (!error) {
+      // Update video_profiles: delete old, insert new
+      await supabase.from('video_profiles').delete().eq('video_id', editVideoModal.id);
+      if (editVideoAllowedUsers.length > 0) {
+        await supabase.from('video_profiles').insert(
+          editVideoAllowedUsers.map(profileId => ({ video_id: editVideoModal.id, profile_id: profileId }))
+        );
+      }
       setVideos(prev => prev.map(v =>
         v.id === editVideoModal.id
-          ? { ...v, title: editVideoTitle.trim(), category_id: editVideoCategoryId || null }
+          ? { ...v, title: editVideoTitle.trim(), category_id: editVideoCategoryId || null, allowedUsers: editVideoAllowedUsers }
           : v
       ));
       setEditVideoModal(null);
@@ -948,6 +957,27 @@ export default function App() {
                       <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Visible per a</label>
+                  <div className="flex flex-wrap gap-2">
+                    {profiles.map(p => {
+                      const selected = editVideoAllowedUsers.includes(p.id);
+                      return (
+                        <button key={p.id} type="button"
+                          onClick={() => setEditVideoAllowedUsers(prev =>
+                            selected ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                          )}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border-2 transition-all ${
+                            selected
+                              ? `${p.color} text-white border-transparent shadow`
+                              : 'bg-gray-50 text-gray-500 border-gray-200'
+                          }`}>
+                          {p.emoji} {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setEditVideoModal(null)}

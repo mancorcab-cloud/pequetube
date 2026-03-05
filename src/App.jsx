@@ -85,6 +85,11 @@ export default function App() {
   // ─── Child – category filter ──────────────────────────────────────────────
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  // ─── Admin – edit video modal ─────────────────────────────────────────────
+  const [editVideoModal, setEditVideoModal] = useState(null);
+  const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [editVideoCategoryId, setEditVideoCategoryId] = useState('');
+
   // ─── Change password modal ────────────────────────────────────────────────
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -917,47 +922,6 @@ export default function App() {
             </div>
           </div>
         </div>
-
-        {editVideoModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
-              <h2 className="text-xl font-bold mb-1 text-center text-gray-800">✏️ Editar vídeo</h2>
-              <div className="mb-5 flex justify-center">
-                <img src={editVideoModal.thumbnail} alt={editVideoModal.title}
-                  className="w-40 h-24 object-cover rounded-xl shadow" />
-              </div>
-              <form onSubmit={handleSaveEditVideo} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Títol</label>
-                  <input type="text" autoFocus
-                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
-                    value={editVideoTitle} onChange={e => setEditVideoTitle(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Temàtica</label>
-                  <select
-                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
-                    value={editVideoCategoryId} onChange={e => setEditVideoCategoryId(e.target.value)}>
-                    <option value="">-- Sense temàtica --</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setEditVideoModal(null)}
-                    className="flex-1 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-                    Cancel·lar
-                  </button>
-                  <button type="submit"
-                    className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors">
-                    Guardar
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {editVideoModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">

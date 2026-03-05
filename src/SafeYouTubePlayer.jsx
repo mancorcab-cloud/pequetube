@@ -32,7 +32,7 @@ function loadYouTubeAPI() {
   return apiLoadPromise;
 }
 
-export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, hasPrev, siblingVideos, onSelectVideo }) {
+export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, hasPrev, siblingVideos, onSelectVideo, categoryVideos }) {
   const containerRef = useRef(null);
   const playerRef = useRef(null);
   const intervalRef = useRef(null);
@@ -40,6 +40,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cssFullscreen, setCssFullscreen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -131,11 +132,27 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   // Escuchar cambios de fullscreen
   useEffect(() => {
     const handler = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const inFs = !!document.fullscreenElement || !!document.webkitFullscreenElement;
+      setIsFullscreen(inFs);
+      if (!inFs) setCssFullscreen(false);
     };
     document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
+    document.addEventListener('webkitfullscreenchange', handler);
+    return () => {
+      document.removeEventListener('fullscreenchange', handler);
+      document.removeEventListener('webkitfullscreenchange', handler);
+    };
   }, []);
+
+  // Bloquear scroll del body en CSS fullscreen (mòbil)
+  useEffect(() => {
+    if (cssFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [cssFullscreen]);
 
   // Auto-hide de controles
   const resetHideTimer = useCallback(() => {
@@ -180,10 +197,21 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   const toggleFullscreen = () => {
     const el = containerRef.current;
     if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
+    const inFs = !!document.fullscreenElement || !!document.webkitFullscreenElement || cssFullscreen;
+    if (inFs) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      setCssFullscreen(false);
+      setIsFullscreen(false);
     } else {
-      el.requestFullscreen();
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) {
+        req.call(el).catch(() => setCssFullscreen(true));
+      } else {
+        // iOS Safari fallback: CSS fullscreen
+        setCssFullscreen(true);
+        setIsFullscreen(true);
+      }
     }
   };
 
@@ -229,7 +257,11 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-white group select-none"
+      className={`relative w-full bg-black group select-none ${
+        cssFullscreen
+          ? 'fixed inset-0 z-[99999] overflow-hidden'
+          : 'aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-white'
+      }`}
       onMouseMove={resetHideTimer}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -319,6 +351,31 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none transition-opacity duration-300">
           <div className="bg-black/60 rounded-full p-5 backdrop-blur-sm">
             <Play size={48} className="text-white" fill="white" />
+          </div>
+        </div>
+      )}
+
+      {/* Video tray: vídeos de la mateixa temàtica en fullscreen */}
+      {(isFullscreen || cssFullscreen) && showControls && !hasEnded && categoryVideos && categoryVideos.length > 0 && (
+        <div className="absolute bottom-[4.5rem] left-0 right-0 z-20 px-4 pb-1">
+          <p className="text-white/60 text-[10px] font-bold mb-1.5 uppercase tracking-widest">Més vídeos</p>
+          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            {categoryVideos.map(video => (
+              <button
+                key={video.id}
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => { e.stopPropagation(); onSelectVideo(video); }}
+                className="flex-shrink-0 group/v flex flex-col bg-black/60 hover:bg-black/80 rounded-xl overflow-hidden transition-all w-36 backdrop-blur-sm border border-white/10"
+              >
+                <div className="relative w-full aspect-video">
+                  <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover/v:opacity-100 transition-opacity" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Play size={18} className="text-white drop-shadow-lg" fill="white" />
+                  </div>
+                </div>
+                <span className="text-white text-[11px] font-semibold p-1.5 line-clamp-2 text-left leading-tight">{video.title}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}

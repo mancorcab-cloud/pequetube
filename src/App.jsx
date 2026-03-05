@@ -1118,6 +1118,7 @@ export default function App() {
                 onNext={() => { const idx = misVideos.indexOf(videoActual); if (idx < misVideos.length - 1) setVideoActual(misVideos[idx + 1]); }}
                 onPrev={() => { const idx = misVideos.indexOf(videoActual); if (idx > 0) setVideoActual(misVideos[idx - 1]); }}
                 siblingVideos={misVideos.filter(v => v.id !== videoActual.id)}
+                categoryVideos={videoActual.category_id ? misVideos.filter(v => v.id !== videoActual.id && v.category_id === videoActual.category_id) : []}
                 onSelectVideo={video => setVideoActual(video)}
               />
               <h1 className="text-2xl font-bold mt-6 ml-2">{videoActual.title}</h1>

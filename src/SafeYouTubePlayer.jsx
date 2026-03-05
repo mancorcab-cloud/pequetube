@@ -284,7 +284,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
       {/* Pantalla de fin: muestra los videos del niño */}
       {hasEnded && siblingVideos && siblingVideos.length > 0 && (
         <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-4">
-          <h3 className="text-white text-xl md:text-2xl font-bold mb-4">¡Sigue viendo!</h3>
+          <h3 className="text-white text-xl md:text-2xl font-bold mb-4">Continua veient!</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl w-full max-h-[70%] overflow-y-auto p-2">
             {siblingVideos.map(video => (
               <button
@@ -309,7 +309,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
               togglePlay(); // Volver a reproducir el actual
             }}
           >
-            <RotateCcw size={16} /> Volver a ver este video
+            <RotateCcw size={16} /> Tornar a veure este vídeo
           </button>
         </div>
       )}

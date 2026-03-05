@@ -141,11 +141,11 @@ export default function App() {
     e.preventDefault();
     setSetupError('');
     if (setupPin.length < 4) {
-      setSetupError('El PIN debe tener al menos 4 caracteres.');
+      setSetupError('El PIN ha de tindre almenys 4 caràcters.');
       return;
     }
     if (setupPin !== setupPinConfirm) {
-      setSetupError('Los PIN no coinciden.');
+      setSetupError('Els PIN no coincidixen.');
       return;
     }
     setAdminPin(setupPin);
@@ -160,16 +160,16 @@ export default function App() {
     e.preventDefault();
     setEditPinError('');
     if (editPinValue && editPinValue.length < 4) {
-      setEditPinError('El PIN debe tener al menos 4 caracteres.');
+      setEditPinError('El PIN ha de tindre almenys 4 caràcters.');
       return;
     }
     if (editPinValue && editPinValue !== editPinConfirm) {
-      setEditPinError('Los PIN no coinciden.');
+      setEditPinError('Els PIN no coincidixen.');
       return;
     }
     if (editPinUser === 'admin') {
       if (!editPinValue) {
-        setEditPinError('El PIN de adultos es obligatorio.');
+        setEditPinError('El PIN d\'adults és obligatori.');
         return;
       }
       setAdminPin(editPinValue);
@@ -228,21 +228,21 @@ export default function App() {
     setErrorAñadirVideo('');
 
     if (!nuevaUrl || !nuevoTitulo) {
-      setErrorAñadirVideo('Rellena la URL y el Título.');
+      setErrorAñadirVideo('Omple l\'URL i el Títol.');
       return;
     }
     if (usuariosSeleccionados.length === 0) {
-      setErrorAñadirVideo('Selecciona al menos un niño que pueda ver el video.');
+      setErrorAñadirVideo('Selecciona almenys un xiquet que puga veure el vídeo.');
       return;
     }
 
     const id = extraerIdYouTube(nuevaUrl);
     if (!id) {
-      setErrorAñadirVideo('URL de YouTube no válida.');
+      setErrorAñadirVideo('URL de YouTube no vàlida.');
       return;
     }
     if (videos.some(v => v.id === id)) {
-      setErrorAñadirVideo('Este video ya está en la biblioteca.');
+      setErrorAñadirVideo('Este vídeo ja està a la biblioteca.');
       return;
     }
 
@@ -272,18 +272,18 @@ export default function App() {
           <h1 className="text-5xl font-black text-gray-800 mb-2 tracking-tight">
             Peque<span className="text-red-500">Tube</span>
           </h1>
-          <p className="text-xl text-gray-600 font-medium">¡Bienvenido! Configura tu PIN de adulto</p>
+          <p className="text-xl text-gray-600 font-medium">Benvingut! Configura el teu PIN d'adult</p>
         </div>
 
         <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
           <h2 className="text-xl font-bold mb-2 flex items-center justify-center gap-2 text-gray-800">
-            <KeyRound className="text-blue-600" /> Crear PIN de Adultos
+            <KeyRound className="text-blue-600" /> Crear PIN d'Adults
           </h2>
-          <p className="text-gray-500 mb-6 text-center text-sm">Este PIN protege el panel de control</p>
+          <p className="text-gray-500 mb-6 text-center text-sm">Aquest PIN protegeix el panell de control</p>
           
           <form onSubmit={handleSetupPin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">PIN (mínimo 4 caracteres)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">PIN (mínim 4 caràcters)</label>
               <input
                 type="password"
                 placeholder="••••"
@@ -294,7 +294,7 @@ export default function App() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar PIN</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar el PIN</label>
               <input
                 type="password"
                 placeholder="••••"
@@ -313,7 +313,7 @@ export default function App() {
               type="submit"
               className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
             >
-              Guardar y empezar
+              Guardar i començar
             </button>
           </form>
         </div>
@@ -329,7 +329,7 @@ export default function App() {
           <h1 className="text-5xl font-black text-gray-800 mb-2 tracking-tight">
             Peque<span className="text-red-500">Tube</span>
           </h1>
-          <p className="text-xl text-gray-600 font-medium">¿Quién está viendo hoy?</p>
+          <p className="text-xl text-gray-600 font-medium">Qui està veient hui?</p>
         </div>
 
         <div className="flex flex-wrap justify-center gap-8 max-w-4xl">
@@ -360,7 +360,7 @@ export default function App() {
             <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center shadow-inner border-4 border-white mb-4">
               <Shield size={48} className="text-gray-500 group-hover:text-gray-700" />
             </div>
-            <span className="text-2xl font-bold text-gray-500">Padres</span>
+            <span className="text-2xl font-bold text-gray-500">Pares</span>
           </div>
         </div>
 
@@ -369,9 +369,9 @@ export default function App() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl transform transition-all">
               <h2 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2 text-gray-800">
-                <Shield className="text-blue-600" /> Zona de Adultos
+                <Shield className="text-blue-600" /> Zona d'Adults
               </h2>
-              <p className="text-gray-500 mb-8 text-center text-sm">Introduce el PIN de adultos</p>
+              <p className="text-gray-500 mb-8 text-center text-sm">Introduïx el PIN d'adults</p>
               
               <form onSubmit={handleVerificarPin}>
                 <input
@@ -382,7 +382,7 @@ export default function App() {
                   onChange={(e) => setPinInput(e.target.value)}
                   autoFocus
                 />
-                {errorPin && <p className="text-red-500 text-sm mb-4 text-center font-medium">PIN incorrecto.</p>}
+                {errorPin && <p className="text-red-500 text-sm mb-4 text-center font-medium">PIN incorrecte.</p>}
                 
                 <div className="flex gap-4">
                   <button 
@@ -390,7 +390,7 @@ export default function App() {
                     onClick={() => { setMostrarPin(false); setErrorPin(false); setPinInput(''); }}
                     className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
                   >
-                    Volver
+                    Tornar
                   </button>
                   <button 
                     type="submit"
@@ -413,7 +413,7 @@ export default function App() {
                   {childPinModal.emoji}
                 </div>
                 <h2 className="text-xl font-bold text-gray-800">{childPinModal.name}</h2>
-                <p className="text-gray-500 text-sm">Introduce tu contraseña</p>
+                <p className="text-gray-500 text-sm">Introduïx la teua contrasenya</p>
               </div>
               
               <form onSubmit={handleVerificarChildPin}>
@@ -425,7 +425,7 @@ export default function App() {
                   onChange={(e) => setChildPinInput(e.target.value)}
                   autoFocus
                 />
-                {errorChildPin && <p className="text-red-500 text-sm mb-3 text-center font-medium">Contraseña incorrecta.</p>}
+                {errorChildPin && <p className="text-red-500 text-sm mb-3 text-center font-medium">Contrasenya incorrecta.</p>}
                 
                 <div className="flex gap-4">
                   <button 
@@ -433,7 +433,7 @@ export default function App() {
                     onClick={() => { setChildPinModal(null); setErrorChildPin(false); setChildPinInput(''); }}
                     className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
                   >
-                    Volver
+                    Tornar
                   </button>
                   <button 
                     type="submit"
@@ -462,8 +462,8 @@ export default function App() {
                 <Shield size={28} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Panel de Control</h1>
-                <p className="text-sm text-gray-500">Añade videos y gestiona perfiles</p>
+                <h1 className="text-2xl font-bold text-gray-800">Tauler de Control</h1>
+                <p className="text-sm text-gray-500">Afig vídeos i gestiona perfils</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -471,13 +471,13 @@ export default function App() {
                 onClick={() => { setEditPinUser('admin'); setEditPinValue(''); setEditPinConfirm(''); setEditPinError(''); setShowEditPin(true); }}
                 className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl transition-colors font-medium text-sm"
               >
-                <KeyRound size={16} /> Cambiar PIN
+                <KeyRound size={16} /> Canviar PIN
               </button>
               <button 
                 onClick={cerrarSesion}
                 className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl transition-colors font-medium"
               >
-                <LogOut size={18} /> Salir
+                <LogOut size={18} /> Eixir
               </button>
             </div>
           </div>
@@ -490,14 +490,14 @@ export default function App() {
               {/* Formulario Crear Niño */}
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
-                  <User className="text-green-500" /> Crear Perfil de Niño
+                  <User className="text-green-500" /> Crear Perfil de Xiquet
                 </h2>
                 <form onSubmit={handleAñadirUsuario} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
                     <input 
                       type="text" 
-                      placeholder="Ej: Sofía"
+                      placeholder="Ex: Sofia"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
                       value={nuevoNombreUsuario}
                       onChange={(e) => setNuevoNombreUsuario(e.target.value)}
@@ -518,17 +518,17 @@ export default function App() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña (opcional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contrasenya (opcional)</label>
                     <input 
                       type="password" 
-                      placeholder="Dejar vacío = sin contraseña"
+                      placeholder="Deixar buit = sense contrasenya"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                       value={nuevoPinUsuario}
                       onChange={(e) => setNuevoPinUsuario(e.target.value)}
                     />
                   </div>
                   <button type="submit" className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
-                    <Plus size={18} /> Añadir Perfil
+                    <Plus size={18} /> Afegir Perfil
                   </button>
                 </form>
 
@@ -542,13 +542,13 @@ export default function App() {
                         {u.pin ? (
                           <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Lock size={10} /> PIN</span>
                         ) : (
-                          <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">Sin PIN</span>
+                          <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">Sense PIN</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
                         <button 
                           onClick={() => { setEditPinUser(u); setEditPinValue(''); setEditPinConfirm(''); setEditPinError(''); setShowEditPin(true); }} 
-                          className="text-gray-400 hover:text-blue-500 p-1" title="Editar contraseña"
+                          className="text-gray-400 hover:text-blue-500 p-1" title="Editar contrasenya"
                         >
                           <KeyRound size={14} />
                         </button>
@@ -564,11 +564,11 @@ export default function App() {
               {/* Formulario Añadir Video */}
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2">
-                  <Video className="text-red-500" /> Añadir Video Nuevo
+                  <Video className="text-red-500" /> Afegir Vídeo Nou
                 </h2>
                 <form onSubmit={handleAñadirVideo} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Enlace de YouTube</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Enllaç de YouTube</label>
                     <input 
                       type="text" 
                       placeholder="https://youtube.com/watch?v=..."
@@ -578,10 +578,10 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Títol</label>
                     <input 
                       type="text" 
-                      placeholder="Ej: Aprende los números"
+                      placeholder="Ex: Aprén els números"
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                       value={nuevoTitulo}
                       onChange={(e) => setNuevoTitulo(e.target.value)}
@@ -590,9 +590,9 @@ export default function App() {
                   
                   {/* Selector de Niños para el video */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">¿Quién puede ver este video?</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Qui pot veure este vídeo?</label>
                     {users.length === 0 ? (
-                      <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">Primero debes crear un perfil de niño.</p>
+                      <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">Primer has de crear un perfil de xiquet.</p>
                     ) : (
                       <div className="space-y-2">
                         {users.map(u => (
@@ -622,7 +622,7 @@ export default function App() {
                     disabled={users.length === 0}
                     className="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Plus size={18} /> Guardar Video
+                    <Plus size={18} /> Guardar Vídeo
                   </button>
                 </form>
               </div>
@@ -632,12 +632,12 @@ export default function App() {
             {/* Columna Derecha: Biblioteca global */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm">
               <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-2">
-                Biblioteca Global de Videos ({videos.length})
+                Biblioteca Global de Vídeos ({videos.length})
               </h2>
               
               <div className="space-y-4">
                 {videos.length === 0 ? (
-                  <p className="text-gray-500 text-center py-12">No hay videos en la biblioteca.</p>
+                  <p className="text-gray-500 text-center py-12">No hi ha vídeos a la biblioteca.</p>
                 ) : (
                   videos.map(video => (
                     <div key={video.id} className="flex gap-4 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors group">
@@ -646,9 +646,9 @@ export default function App() {
                         <div>
                           <h3 className="font-bold text-gray-800 line-clamp-1">{video.title}</h3>
                           <div className="flex items-center gap-1 mt-2 flex-wrap">
-                            <span className="text-xs text-gray-500 mr-1">Visible para:</span>
+                            <span className="text-xs text-gray-500 mr-1">Visible per a:</span>
                             {video.allowedUsers.length === 0 ? (
-                              <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">Ninguno</span>
+                              <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">Cap</span>
                             ) : (
                               video.allowedUsers.map(uid => {
                                 const user = users.find(u => u.id === uid);
@@ -684,22 +684,22 @@ export default function App() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
               <h2 className="text-xl font-bold mb-1 text-center text-gray-800">
-                {editPinUser === 'admin' ? '🔒 Cambiar PIN de Adultos' : `🔑 Contraseña de ${editPinUser?.name}`}
+                {editPinUser === 'admin' ? '🔒 Canviar PIN d\'Adults' : `🔑 Contrasenya de ${editPinUser?.name}`}
               </h2>
               <p className="text-gray-500 mb-6 text-center text-sm">
                 {editPinUser === 'admin' 
-                  ? 'Introduce el nuevo PIN de acceso al panel'
-                  : 'Dejar vacío para quitar la contraseña'}
+                  ? 'Introduïx el nou PIN d\'accés al tauler'
+                  : 'Deixar buit per a llevar la contrasenya'}
               </p>
 
               <form onSubmit={handleEditPin} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {editPinUser === 'admin' ? 'Nuevo PIN' : 'Nueva contraseña'}
+                    {editPinUser === 'admin' ? 'Nou PIN' : 'Nova contrasenya'}
                   </label>
                   <input
                     type="password"
-                    placeholder={editPinUser === 'admin' ? '••••' : 'Vacío = sin contraseña'}
+                    placeholder={editPinUser === 'admin' ? '••••' : 'Buit = sense contrasenya'}
                     className="w-full text-center text-xl tracking-[0.3em] p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors"
                     value={editPinValue}
                     onChange={(e) => setEditPinValue(e.target.value)}
@@ -730,7 +730,7 @@ export default function App() {
                     onClick={() => { setShowEditPin(false); setEditPinError(''); }}
                     className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
                   >
-                    Cancelar
+                    Cancel·lar
                   </button>
                   <button
                     type="submit"
@@ -762,14 +762,14 @@ export default function App() {
           <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
             <span className="text-2xl">{currentUser.emoji}</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">Hola, {currentUser.name}</span>
+          <span className="text-xl font-bold tracking-tight">Hola, {currentUser.name}!</span>
         </div>
 
         <button 
           onClick={cerrarSesion}
           className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-colors text-sm font-bold backdrop-blur-sm"
         >
-          <LogOut size={16} /> Salir
+          <LogOut size={16} /> Eixir
         </button>
       </nav>
 
@@ -784,7 +784,7 @@ export default function App() {
                 onClick={() => setVideoActual(null)}
                 className="mb-4 flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors bg-white px-4 py-2 rounded-full shadow-sm"
               >
-                <ArrowLeft size={20} /> Volver a mis videos
+                <ArrowLeft size={20} /> Tornar als meus vídeos
               </button>
               
               <SafeYouTubePlayer
@@ -807,7 +807,7 @@ export default function App() {
 
             {/* Lista "Siguientes" (solo videos del niño) */}
             <div className="w-full xl:w-96 flex flex-col gap-4">
-              <h3 className="font-bold text-xl mb-2 text-gray-800">Sigue viendo</h3>
+              <h3 className="font-bold text-xl mb-2 text-gray-800">Continua veient</h3>
               <div className="space-y-4">
                 {misVideos.filter(v => v.id !== videoActual.id).map(video => (
                   <div 
@@ -830,13 +830,13 @@ export default function App() {
         ) : (
           // Vista Cuadrícula de Niño
           <div>
-            <h2 className="text-3xl font-black mb-8 text-gray-800 ml-2">Tus videos favoritos</h2>
+            <h2 className="text-3xl font-black mb-8 text-gray-800 ml-2">Els teus vídeos favorits</h2>
             
             {misVideos.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-3xl shadow-sm border-2 border-dashed border-gray-200 p-8 text-center">
                 <Video size={64} className="mb-4 text-gray-300" />
-                <p className="text-xl font-bold text-gray-600">Aún no tienes videos.</p>
-                <p className="text-md">¡Pídele a un adulto que te añada algunos!</p>
+                <p className="text-xl font-bold text-gray-600">Encara no tens vídeos.</p>
+                <p className="text-md">Demana-li a un adult que t'en afegisca!</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -855,7 +855,7 @@ export default function App() {
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors"></div>
                       <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
                         <Play size={12} className="inline mr-1 mb-0.5" fill="currentColor" />
-                        Ver ahora
+                        Veure ara
                       </div>
                     </div>
                     <h3 className="font-bold text-gray-800 px-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{video.title}</h3>

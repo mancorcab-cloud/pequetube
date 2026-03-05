@@ -276,6 +276,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
           width: 100% !important;
           height: 100% !important;
         }
+        .yt-tray-scroll::-webkit-scrollbar { display: none; }
       `}</style>
       <div className="yt-player-slot absolute inset-0 w-full h-full pointer-events-none">
         <div />
@@ -365,7 +366,8 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
           style={{ pointerEvents: 'auto' }}
         >
           <p className="text-white/60 text-[10px] font-bold mb-1.5 uppercase tracking-widest">Més vídeos</p>
-          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="yt-tray-scroll flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <style>{`.tray-scroll::-webkit-scrollbar { display: none; }`}</style>
             {categoryVideos.map(video => (
               <button
                 key={video.id}

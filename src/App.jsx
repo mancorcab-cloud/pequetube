@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Play, Lock, Plus, Trash2, ArrowLeft, AlertCircle,
   User, Shield, Video, CheckSquare, Square, LogOut,
-  KeyRound, Eye, EyeOff, RefreshCw, Tag
+  KeyRound, Eye, EyeOff, RefreshCw, Tag, Pencil
 } from 'lucide-react';
 import SafeYouTubePlayer from './SafeYouTubePlayer';
 import { supabase } from './supabaseClient';
@@ -373,6 +373,32 @@ export default function App() {
   async function handleDeleteVideo(videoId) {
     await supabase.from('videos').delete().eq('id', videoId);
     setVideos(prev => prev.filter(v => v.id !== videoId));
+  }
+
+  function openEditVideo(video) {
+    setEditVideoModal(video);
+    setEditVideoTitle(video.title);
+    setEditVideoCategoryId(video.category_id || '');
+  }
+
+  async function handleSaveEditVideo(e) {
+    e.preventDefault();
+    if (!editVideoTitle.trim()) return;
+    const { error } = await supabase
+      .from('videos')
+      .update({
+        title: editVideoTitle.trim(),
+        category_id: editVideoCategoryId || null,
+      })
+      .eq('id', editVideoModal.id);
+    if (!error) {
+      setVideos(prev => prev.map(v =>
+        v.id === editVideoModal.id
+          ? { ...v, title: editVideoTitle.trim(), category_id: editVideoCategoryId || null }
+          : v
+      ));
+      setEditVideoModal(null);
+    }
   }
 
   async function handleAddCategory(e) {
@@ -874,10 +900,16 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <button onClick={() => handleDeleteVideo(video.id)}
-                        className="self-center p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={20} />
-                      </button>
+                      <div className="self-center flex flex-col gap-1">
+                        <button onClick={() => openEditVideo(video)}
+                          className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                          <Pencil size={18} />
+                        </button>
+                        <button onClick={() => handleDeleteVideo(video.id)}
+                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -885,6 +917,88 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {editVideoModal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+              <h2 className="text-xl font-bold mb-1 text-center text-gray-800">✏️ Editar vídeo</h2>
+              <div className="mb-5 flex justify-center">
+                <img src={editVideoModal.thumbnail} alt={editVideoModal.title}
+                  className="w-40 h-24 object-cover rounded-xl shadow" />
+              </div>
+              <form onSubmit={handleSaveEditVideo} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Títol</label>
+                  <input type="text" autoFocus
+                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={editVideoTitle} onChange={e => setEditVideoTitle(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Temàtica</label>
+                  <select
+                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={editVideoCategoryId} onChange={e => setEditVideoCategoryId(e.target.value)}>
+                    <option value="">-- Sense temàtica --</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setEditVideoModal(null)}
+                    className="flex-1 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                    Cancel·lar
+                  </button>
+                  <button type="submit"
+                    className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors">
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {editVideoModal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+              <h2 className="text-xl font-bold mb-1 text-center text-gray-800">✏️ Editar vídeo</h2>
+              <div className="mb-5 flex justify-center">
+                <img src={editVideoModal.thumbnail} alt={editVideoModal.title}
+                  className="w-40 h-24 object-cover rounded-xl shadow" />
+              </div>
+              <form onSubmit={handleSaveEditVideo} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Títol</label>
+                  <input type="text" autoFocus
+                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={editVideoTitle} onChange={e => setEditVideoTitle(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Temàtica</label>
+                  <select
+                    className="w-full p-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={editVideoCategoryId} onChange={e => setEditVideoCategoryId(e.target.value)}>
+                    <option value="">-- Sense temàtica --</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setEditVideoModal(null)}
+                    className="flex-1 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                    Cancel·lar
+                  </button>
+                  <button type="submit"
+                    className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors">
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {showChangePassword && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">

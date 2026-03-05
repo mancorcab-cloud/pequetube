@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pequetube-v2';
+const CACHE_NAME = 'pequetube-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

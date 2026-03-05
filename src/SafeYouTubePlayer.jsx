@@ -45,6 +45,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [showTray, setShowTray] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [hasEnded, setHasEnded] = useState(false);
 
@@ -356,8 +357,13 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
       )}
 
       {/* Video tray: vídeos de la mateixa temàtica en fullscreen */}
-      {(isFullscreen || cssFullscreen) && showControls && !hasEnded && categoryVideos && categoryVideos.length > 0 && (
-        <div className="absolute bottom-[4.5rem] left-0 right-0 z-20 px-4 pb-1">
+      {(isFullscreen || cssFullscreen) && showTray && !hasEnded && categoryVideos && categoryVideos.length > 0 && (
+        <div
+          className="absolute bottom-[4.5rem] left-0 right-0 z-20 px-4 pb-1"
+          onMouseEnter={() => setShowTray(true)}
+          onMouseLeave={() => setShowTray(false)}
+          style={{ pointerEvents: 'auto' }}
+        >
           <p className="text-white/60 text-[10px] font-bold mb-1.5 uppercase tracking-widest">Més vídeos</p>
           <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {categoryVideos.map(video => (
@@ -385,6 +391,8 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
         className={`absolute bottom-0 left-0 right-0 z-20 transition-all duration-300 ${
           showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
+        onMouseEnter={() => { if (isFullscreen || cssFullscreen) setShowTray(true); }}
+        onMouseLeave={() => setShowTray(false)}
       >
         {/* Gradiente de fondo */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />

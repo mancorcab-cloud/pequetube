@@ -1,7 +1,5 @@
-const CACHE_NAME = 'pequetube-v4';
+const CACHE_NAME = 'pequetube-v5';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -33,8 +31,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS and CSS assets: network-first (always get latest)
-  if (event.request.url.match(/\.(js|css)$/)) {
+  // HTML, JS, CSS: network-first (always get latest app code)
+  if (event.request.url.match(/\.(js|css|html)$/) || event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).then((response) => {
         if (response.status === 200) {
@@ -42,12 +40,12 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match(event.request))
+      }).catch(() => caches.match(event.request) || caches.match('/index.html'))
     );
     return;
   }
 
-  // Other assets: cache-first with network fallback
+  // Other assets (icons, images): cache-first
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
@@ -57,6 +55,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       });
-    }).catch(() => caches.match('/index.html'))
+    })
   );
 });

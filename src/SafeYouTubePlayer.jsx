@@ -145,24 +145,38 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
     };
   }, []);
 
-  // Bloquear scroll del body en CSS fullscreen (mòbil)
+  // Bloquear scroll i UI del body en CSS fullscreen (mòbil)
   useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
     if (cssFullscreen) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      document.body.style.height = '100%';
+      html.style.overflow = 'hidden';
+      body.style.overflow = 'hidden';
+      body.style.position = 'fixed';
+      body.style.top = '0';
+      body.style.left = '0';
+      body.style.width = '100%';
+      body.style.height = '100%';
+      body.style.margin = '0';
     } else {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
+      html.style.overflow = '';
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.width = '';
+      body.style.height = '';
+      body.style.margin = '';
     }
     return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
+      html.style.overflow = '';
+      body.style.overflow = '';
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.width = '';
+      body.style.height = '';
+      body.style.margin = '';
     };
   }, [cssFullscreen]);
 
@@ -283,21 +297,26 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   return (
     <div
       ref={containerRef}
-      className={`relative w-full bg-black group select-none ${
+      className={`relative bg-black group select-none ${
         cssFullscreen
-          ? 'fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center'
-          : 'aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-white'
+          ? ''
+          : 'w-full aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-white'
       }`}
-      style={cssFullscreen ? { width: '100vw', height: '100vh', maxWidth: '100vw', maxHeight: '100vh' } : undefined}
+      style={cssFullscreen ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      } : undefined}
       onMouseMove={resetHideTimer}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onClick={(e) => {
-        // Only toggle play if the click is on the overlay (not on buttons)
-        if (e.target === e.currentTarget) {
-          resetHideTimer();
-        }
-      }}
     >
       {/* Slot del player de YouTube */}
       <style>{`
@@ -309,10 +328,15 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
           height: 100% !important;
         }
         .yt-tray-scroll::-webkit-scrollbar { display: none; }
+        .yt-css-fs .yt-player-slot {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
       `}</style>
-      <div className={`yt-player-slot absolute w-full h-full pointer-events-none ${
-        cssFullscreen ? 'inset-0' : 'inset-0'
-      }`}>
+      <div className={`yt-player-slot absolute inset-0 w-full h-full pointer-events-none`}>
         <div />
       </div>
 

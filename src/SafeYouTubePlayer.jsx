@@ -149,10 +149,21 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
   useEffect(() => {
     if (cssFullscreen) {
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
     } else {
       document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
   }, [cssFullscreen]);
 
   // Auto-hide de controles
@@ -200,18 +211,32 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
     if (!el) return;
     const inFs = !!document.fullscreenElement || !!document.webkitFullscreenElement || cssFullscreen;
     if (inFs) {
-      if (document.exitFullscreen) document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      // Exit fullscreen
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
       setCssFullscreen(false);
       setIsFullscreen(false);
+      // Unlock orientation
+      try { screen.orientation?.unlock?.(); } catch(_) {}
     } else {
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (req) {
-        req.call(el).catch(() => setCssFullscreen(true));
-      } else {
-        // iOS Safari fallback: CSS fullscreen
+      // Detect mobile: use CSS fullscreen always on touch devices
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      if (isMobile) {
         setCssFullscreen(true);
         setIsFullscreen(true);
+        // Try to lock landscape
+        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch(_) {}
+      } else {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) {
+          req.call(el).catch(() => {
+            setCssFullscreen(true);
+            setIsFullscreen(true);
+          });
+        }
       }
     }
   };
@@ -260,14 +285,21 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
       ref={containerRef}
       className={`relative w-full bg-black group select-none ${
         cssFullscreen
-          ? 'fixed inset-0 z-[99999] overflow-hidden'
+          ? 'fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center'
           : 'aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-white'
       }`}
+      style={cssFullscreen ? { width: '100vw', height: '100vh', maxWidth: '100vw', maxHeight: '100vh' } : undefined}
       onMouseMove={resetHideTimer}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        // Only toggle play if the click is on the overlay (not on buttons)
+        if (e.target === e.currentTarget) {
+          resetHideTimer();
+        }
+      }}
     >
-      {/* Slot del player de YouTube (oculto detrás de la overlay) */}
+      {/* Slot del player de YouTube */}
       <style>{`
         .yt-player-slot iframe {
           position: absolute !important;
@@ -278,7 +310,9 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
         }
         .yt-tray-scroll::-webkit-scrollbar { display: none; }
       `}</style>
-      <div className="yt-player-slot absolute inset-0 w-full h-full pointer-events-none">
+      <div className={`yt-player-slot absolute w-full h-full pointer-events-none ${
+        cssFullscreen ? 'inset-0' : 'inset-0'
+      }`}>
         <div />
       </div>
 
@@ -483,7 +517,7 @@ export default function SafeYouTubePlayer({ videoId, onNext, onPrev, hasNext, ha
               className="hover:scale-110 transition-transform p-1"
               style={{ pointerEvents: 'auto' }}
             >
-              {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+              {(isFullscreen || cssFullscreen) ? <Minimize size={22} /> : <Maximize size={22} />}
             </button>
           </div>
         </div>

@@ -32,6 +32,16 @@ const extraerIdYouTube = (urlStr) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+const extraerIdPlaylistYouTube = (urlStr) => {
+  try {
+    const url = new URL(urlStr);
+    const list = url.searchParams.get('list');
+    if (list) return list;
+  } catch { /* ignore */ }
+  const match = urlStr.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+};
+
 function Spinner({ size = 6, color = 'border-blue-500' }) {
   return (
     <div className={`w-${size} h-${size} border-4 ${color} border-t-transparent rounded-full animate-spin`} />
@@ -76,6 +86,8 @@ export default function App() {
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [profilesSeleccionados, setProfilesSeleccionados] = useState([]);
   const [errorVideo, setErrorVideo] = useState('');
+  const [videoSuccess, setVideoSuccess] = useState('');
+  const [importingPlaylist, setImportingPlaylist] = useState(false);
   const [videoCategoryId, setVideoCategoryId] = useState('');
 
   // ─── Admin – category form ────────────────────────────────────────────────
@@ -340,9 +352,59 @@ export default function App() {
   // ═══════════════════════════════════════════════════════════════════════════
   //  VIDEO HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
+  async function fetchPlaylistVideos(playlistId) {
+    const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY;
+    if (!apiKey) {
+      throw new Error('Falta VITE_YOUTUBE_API_KEY per a importar llistes de reproducció.');
+    }
+
+    let nextPageToken = '';
+    const collected = [];
+
+    do {
+      const qs = new URLSearchParams({
+        part: 'snippet,contentDetails',
+        maxResults: '50',
+        playlistId,
+        key: apiKey,
+      });
+      if (nextPageToken) qs.set('pageToken', nextPageToken);
+
+      const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error?.message || 'No s\'ha pogut llegir la playlist de YouTube.');
+      }
+
+      const pageVideos = (data.items || [])
+        .map(item => {
+          const id = item?.contentDetails?.videoId;
+          const title = item?.snippet?.title;
+          const thumbnail =
+            item?.snippet?.thumbnails?.high?.url
+            || item?.snippet?.thumbnails?.medium?.url
+            || item?.snippet?.thumbnails?.default?.url
+            || (id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null);
+          return { id, title, thumbnail };
+        })
+        .filter(v => v.id && v.title && v.title !== 'Deleted video' && v.title !== 'Private video');
+
+      collected.push(...pageVideos);
+      nextPageToken = data.nextPageToken || '';
+    } while (nextPageToken);
+
+    const unique = new Map();
+    collected.forEach(v => {
+      if (!unique.has(v.id)) unique.set(v.id, v);
+    });
+    return Array.from(unique.values());
+  }
+
   async function handleAddVideo(e) {
     e.preventDefault();
     setErrorVideo('');
+    setVideoSuccess('');
     if (!nuevaUrl || !nuevoTitulo) {
       setErrorVideo("Omple l'URL i el Títol.");
       return;
@@ -374,6 +436,77 @@ export default function App() {
     setNuevoTitulo('');
     setProfilesSeleccionados([]);
     setVideoCategoryId('');
+    setVideoSuccess('Vídeo guardat correctament.');
+  }
+
+  async function handleImportPlaylist() {
+    setErrorVideo('');
+    setVideoSuccess('');
+
+    if (!nuevaUrl) {
+      setErrorVideo('Pega una URL de playlist de YouTube.');
+      return;
+    }
+    if (profilesSeleccionados.length === 0) {
+      setErrorVideo('Selecciona almenys un xiquet que puga veure la llista.');
+      return;
+    }
+
+    const playlistId = extraerIdPlaylistYouTube(nuevaUrl);
+    if (!playlistId) {
+      setErrorVideo('URL de playlist no vàlida. Usa una URL amb ?list=...');
+      return;
+    }
+
+    setImportingPlaylist(true);
+    try {
+      const playlistVideos = await fetchPlaylistVideos(playlistId);
+      if (playlistVideos.length === 0) {
+        setErrorVideo('Esta playlist no té vídeos disponibles per a importar.');
+        return;
+      }
+
+      const currentIds = new Set(videos.map(v => v.id));
+      const toInsert = playlistVideos.filter(v => !currentIds.has(v.id));
+
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase.from('videos').insert(
+          toInsert.map(v => ({
+            id: v.id,
+            user_id: session.user.id,
+            title: v.title,
+            thumbnail: v.thumbnail,
+            category_id: videoCategoryId || null,
+          }))
+        );
+        if (insertError) throw insertError;
+      }
+
+      const profileRows = playlistVideos.flatMap(v =>
+        profilesSeleccionados.map(profileId => ({
+          video_id: v.id,
+          profile_id: profileId,
+        }))
+      );
+
+      if (profileRows.length > 0) {
+        const { error: profileError } = await supabase
+          .from('video_profiles')
+          .upsert(profileRows, { onConflict: 'video_id,profile_id', ignoreDuplicates: true });
+        if (profileError) throw profileError;
+      }
+
+      await loadData();
+      setNuevaUrl('');
+      setNuevoTitulo('');
+      setProfilesSeleccionados([]);
+      setVideoCategoryId('');
+      setVideoSuccess(`Llista importada: ${playlistVideos.length} vídeos (${toInsert.length} nous).`);
+    } catch (error) {
+      setErrorVideo(error?.message || 'Error important la playlist.');
+    } finally {
+      setImportingPlaylist(false);
+    }
   }
 
   async function handleDeleteVideo(videoId) {
@@ -823,7 +956,7 @@ export default function App() {
                 </h2>
                 <form onSubmit={handleAddVideo} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Enllaç de YouTube</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Enllaç de YouTube (vídeo o playlist)</label>
                     <input type="text" placeholder="https://youtube.com/watch?v=..."
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                       value={nuevaUrl} onChange={e => setNuevaUrl(e.target.value)} />
@@ -872,9 +1005,22 @@ export default function App() {
                       <AlertCircle size={16} className="mt-0.5 flex-shrink-0" /><p>{errorVideo}</p>
                     </div>
                   )}
+                  {videoSuccess && (
+                    <div className="text-green-700 bg-green-50 p-3 rounded-xl text-sm font-medium">
+                      {videoSuccess}
+                    </div>
+                  )}
                   <button type="submit" disabled={profiles.length === 0}
                     className="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <Plus size={18} /> Guardar Vídeo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImportPlaylist}
+                    disabled={profiles.length === 0 || importingPlaylist}
+                    className="w-full py-3 bg-red-100 text-red-700 rounded-xl font-bold hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {importingPlaylist ? 'Important llista...' : 'Importar llista de reproducció'}
                   </button>
                 </form>
               </div>

@@ -1,3 +1,21 @@
+# PequeTube
+
+## Variables d'entorn
+
+Per a importar playlists de YouTube, configura també:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_YOUTUBE_API_KEY` (YouTube Data API v3)
+
+Exemple en `.env`:
+
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_YOUTUBE_API_KEY=...
+```
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

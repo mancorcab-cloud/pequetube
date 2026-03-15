@@ -71,6 +71,13 @@ export default function App() {
   const [currentProfile, setCurrentProfile] = useState(null); // null | 'adult' | profile{}
   const [videoActual, setVideoActual] = useState(null);
 
+  // ─── Parent PIN modal ────────────────────────────────────────────────
+  const [showParentPin, setShowParentPin] = useState(false);
+  const [parentPinInput, setParentPinInput] = useState('');
+  const [errorParentPin, setErrorParentPin] = useState(false);
+
+  const PARENT_PIN = '123456';
+
   // ─── Child PIN modal ───────────────────────────────────────────────────────
   const [childPinModal, setChildPinModal] = useState(null);
   const [childPinInput, setChildPinInput] = useState('');
@@ -773,12 +780,50 @@ export default function App() {
                 <span className="text-2xl font-bold text-gray-700">{profile.name}</span>
               </div>
             ))}
-            <div onClick={() => setCurrentProfile('adult')}
+            <div onClick={() => { setShowParentPin(true); setParentPinInput(''); setErrorParentPin(false); }}
               className="flex flex-col items-center cursor-pointer group transform transition-transform hover:scale-110 ml-8">
               <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center shadow-inner border-4 border-white mb-4">
                 <Shield size={48} className="text-gray-500 group-hover:text-gray-700" />
               </div>
               <span className="text-2xl font-bold text-gray-500">Pares</span>
+            </div>
+          </div>
+        )}
+
+        {showParentPin && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+              <div className="flex flex-col items-center mb-6">
+                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center shadow-inner mb-3">
+                  <Shield size={40} className="text-gray-500" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Accés Pares</h2>
+                <p className="text-gray-500 text-sm">Introdueix la contrasenya de pares</p>
+              </div>
+              <form onSubmit={e => {
+                e.preventDefault();
+                if (parentPinInput === PARENT_PIN) {
+                  setShowParentPin(false);
+                  setCurrentProfile('adult');
+                  setParentPinInput('');
+                  setErrorParentPin(false);
+                } else {
+                  setErrorParentPin(true);
+                  setParentPinInput('');
+                }
+              }}>
+                <input type="password" placeholder="••••••"
+                  className={`w-full text-center text-3xl tracking-[0.4em] p-4 rounded-2xl mb-4 bg-gray-50 border-2 outline-none transition-colors ${errorParentPin ? 'border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                  value={parentPinInput} onChange={e => setParentPinInput(e.target.value)} autoFocus />
+                {errorParentPin && <p className="text-red-500 text-sm mb-3 text-center font-medium">Contrasenya incorrecta.</p>}
+                <button type="submit" className="w-full py-3 bg-gray-700 text-white rounded-2xl font-bold text-lg hover:bg-gray-800 transition-colors mb-3">
+                  Entrar
+                </button>
+                <button type="button" onClick={() => setShowParentPin(false)}
+                  className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm transition-colors">
+                  Cancel·lar
+                </button>
+              </form>
             </div>
           </div>
         )}
